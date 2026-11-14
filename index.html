@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f7fa" />
+  <script>
+    (function () {
+      var t = new URLSearchParams(location.search).get("theme");
+      document.documentElement.setAttribute("data-theme", (t === "1" || t === "3") ? t : "2");
+    })();
+  </script>
+  <title>Earth Echo · 地球回聲</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2730%27 fill=%27%23f5f7fa%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2716%27 fill=%27%230a3d91%27/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <h1>Earth Echo</h1>
+      <p class="subtitle" data-i18n="subtitle">地球回聲</p>
+    </div>
+    <p class="tagline" data-i18n="tagline">聽聽這塊土地一直在告訴你什麼</p>
+    <div class="header-actions">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" id="lang-zh" class="active" data-lang="zh">中文</button>
+        <button type="button" id="lang-en" data-lang="en">EN</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="map-pane" aria-label="World map">
+      <div class="map-toolbar">
+        <label class="field">
+          <span data-i18n="variable">變數</span>
+          <select id="variable">
+            <option value="temp" data-i18n="var_temp">氣溫</option>
+            <option value="precip" data-i18n="var_precip">降雨</option>
+            <option value="humidity" data-i18n="var_humidity">空氣濕度</option>
+            <option value="soil" data-i18n="var_soil">土壤濕度</option>
+            <option value="groundwater" data-i18n="var_groundwater">地下水</option>
+            <option value="radiation" data-i18n="var_radiation">太陽輻射</option>
+            <option value="co2" data-i18n="var_co2">二氧化碳</option>
+          </select>
+        </label>
+        <p class="map-hint" id="map-hint"></p>
+      </div>
+      <div class="map-frame">
+        <div class="map-stage">
+          <canvas id="map" width="1200" height="600"></canvas>
+          <div class="map-tooltip hidden" id="map-tooltip"></div>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="slider-row">
+        <button type="button" id="play-year" class="icon-btn" aria-label="Play">
+          <span class="play-icon">▶</span>
+        </button>
+        <input type="range" id="year-slider" min="1980" max="2026" value="2025" step="1" />
+        <div class="year-readout">
+          <strong id="year-label">2025</strong>
+          <span id="year-note"></span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel" id="panel">
+      <section class="card conclusion-card">
+        <div class="conclusion-row">
+          <h2 id="conclusion">…</h2>
+          <div class="voice-controls">
+            <button type="button" id="voice-btn" class="voice-btn" data-i18n="play_tour" data-i18n-aria="play_tour">播放導覽</button>
+            <button type="button" id="voice-pause" class="icon-btn hidden" data-i18n-aria="pause">暫停</button>
+            <button type="button" id="tour-next" class="next-btn hidden" data-i18n="next_topic" data-i18n-aria="next_topic">下一則</button>
+          </div>
+        </div>
+        <div class="place-sub">
+          <span class="mode-pill" id="mode-badge" hidden></span>
+          <p class="place-meta" id="place-meta"></p>
+        </div>
+        <div class="tour-bar hidden" id="tour-bar">
+          <p class="tour-prompt" id="tour-prompt" hidden></p>
+          <div class="tour-chips" id="tour-chips" role="group" aria-label="Tour topics"></div>
+        </div>
+      </section>
+
+      <section class="card chart-card">
+        <div class="card-head">
+          <h3 id="chart-title" data-i18n="chart_trend">趨勢</h3>
+          <div class="chart-tabs" id="chart-tabs">
+            <button type="button" data-chart="trend" class="active" data-i18n="tab_trend">趨勢</button>
+            <button type="button" data-chart="ranking" data-i18n="tab_ranking">首都排名</button>
+          </div>
+        </div>
+        <canvas id="chart" width="800" height="420"></canvas>
+        <div class="chart-legend" id="chart-legend" hidden></div>
+        <p class="chart-caption" id="chart-caption"></p>
+      </section>
+
+      <section class="card sowhat-card" id="sowhat-card" aria-label="Finding, meaning, tip and outlook">
+        <article class="sowhat-part" data-part="finding" id="sowhat-finding-card">
+          <h3><span class="sowhat-kicker">1</span> <span data-i18n="part_finding">發現 Finding</span></h3>
+          <p id="sowhat-finding"></p>
+          <p class="sowhat-source" id="sowhat-finding-source"></p>
+          <details class="sowhat-details">
+            <summary data-i18n="data_details">資料依據 / Data details</summary>
+            <p id="sowhat-finding-details"></p>
+          </details>
+        </article>
+        <article class="sowhat-part" data-part="meaning" id="sowhat-meaning-card">
+          <h3><span class="sowhat-kicker">2</span> <span data-i18n="part_meaning">代表 What it means</span></h3>
+          <p id="sowhat-meaning"></p>
+          <p class="sowhat-source" id="sowhat-meaning-source"></p>
+          <details class="sowhat-details">
+            <summary data-i18n="data_details">資料依據 / Data details</summary>
+            <p id="sowhat-meaning-details"></p>
+          </details>
+        </article>
+        <article class="sowhat-part" data-part="tip" id="sowhat-tip-card">
+          <h3><span class="sowhat-kicker">3</span> <span data-i18n="part_tip">建議 Tip</span></h3>
+          <p id="sowhat-tip"></p>
+          <p class="sowhat-source" id="sowhat-tip-source"></p>
+          <details class="sowhat-details">
+            <summary data-i18n="data_details">資料依據 / Data details</summary>
+            <p id="sowhat-tip-details"></p>
+          </details>
+        </article>
+        <article class="sowhat-part" data-part="outlook" id="sowhat-outlook-card">
+          <h3><span class="sowhat-kicker">4</span> <span data-i18n="part_outlook">未來趨勢 Outlook</span></h3>
+          <p id="sowhat-outlook"></p>
+          <p class="sowhat-source" id="sowhat-outlook-source"></p>
+          <details class="sowhat-details">
+            <summary data-i18n="data_details">資料依據 / Data details</summary>
+            <p id="sowhat-outlook-details"></p>
+          </details>
+        </article>
+      </section>
+
+      <section class="card ranking-card desktop-only" id="ranking-card">
+        <h3 data-i18n="ranking_title">首都升溫排名</h3>
+        <div class="ranking-scroll" id="ranking"></div>
+      </section>
+
+      <section class="card events-card" id="events-card">
+        <h3 data-i18n="events_title">附近事件</h3>
+        <div id="events"></div>
+      </section>
+
+      <p class="subtitles" id="subtitles" hidden></p>
+
+      <section class="sources" id="sources"></section>
+    </aside>
+  </main>
+
+  <div class="mobile-start" id="mobile-start" hidden>
+    <div class="mobile-start-inner">
+      <p class="eyebrow">Earth Echo</p>
+      <h2 data-i18n="start_title">開始導覽</h2>
+      <p data-i18n="start_body">按一下即可解鎖語音，並用你所在的位置講述這塊土地四十年來的變化。</p>
+      <button type="button" id="start-tour" class="start-btn" data-i18n="start_btn">開始導覽</button>
+      <div class="demo-places">
+        <p data-i18n="or_try">或不開定位，改聽示範地點：</p>
+        <div class="demo-row">
+          <button type="button" class="demo-btn" data-city="taipei">台北 Taipei</button>
+          <button type="button" class="demo-btn" data-city="new_york">紐約 New York</button>
+          <button type="button" class="demo-btn" data-city="cairo">開羅 Cairo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/vars.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/sowhat.js"></script>
+  <script src="js/narration.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
