@@ -183,28 +183,34 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   ctx.fillText(unit, 8, 12);
 }
 
-function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variable) {
+function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variable, opts) {
   variable = variable || "temp";
-  const caps = cities
-    .filter((c) => c.capital && trendOf(c, variable)?.sen_slope_per_decade != null)
-    .sort((a, b) => trendOf(b, variable).sen_slope_per_decade - trendOf(a, variable).sen_slope_per_decade);
+  opts = opts || {};
+  const mode = opts.mode || "trend";
+  const items = rankingItems(cities, variable, { mode, year: opts.year, order: opts.order || "desc" });
   const ctx = canvas.getContext("2d");
   const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   const w = canvas.clientWidth || 400;
   const rowH = 18;
-  const h = Math.max(200, 28 + caps.length * rowH);
+  const h = Math.max(200, 28 + items.length * rowH);
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   canvas.style.height = `${h}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+  const spec = varSpec(variable);
 
-  const maxAbs = Math.max(...caps.map((c) => Math.abs(trendOf(c, variable).sen_slope_per_decade)), Math.abs(globalSlope || 0), 0.2);
+  if (!items.length) {
+    ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
+    ctx.font = "13px Outfit, sans-serif";
+    ctx.fillText(t(lang, "no_data"), 20, h / 2);
+    return;
+  }
+
   const padL = 108;
-  const mid = padL + (w - padL - 48) * (maxAbs === 0 ? 0.5 : maxAbs / (maxAbs * 2));
-  // actually bars from 0: left is 0 if all positive? Some are negative (Delhi, Hanoi).
-  // Use a diverging axis around 0.
-  const x0 = padL + (w - padL - 16) * (maxAbs / (2 * maxAbs));
+  const values = items.map((it) => it.value);
+  const maxAbs = Math.max(...values.map((v) => Math.abs(v)), (mode !== "year" ? Math.abs(globalSlope || 0) : 0), 0.2);
+  const x0 = padL + (w - padL - 16) * 0.5;
   const scale = (w - padL - 16) / (2 * maxAbs);
 
   ctx.strokeStyle = themeColor("--chart-axis", "rgba(180,200,220,0.25)");
@@ -213,7 +219,7 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
   ctx.lineTo(x0, h - 8);
   ctx.stroke();
 
-  if (globalSlope != null) {
+  if (mode !== "year" && variable === "temp" && globalSlope != null) {
     const gx = x0 + globalSlope * scale;
     ctx.setLineDash([3, 3]);
     ctx.strokeStyle = themeColor("--gold", "#e4b84a");
@@ -224,7 +230,8 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
     ctx.setLineDash([]);
   }
 
-  caps.forEach((c, i) => {
+  items.forEach((it, i) => {
+    const c = it.city;
     const y = 10 + i * rowH;
     const selected = c.id === selectedId;
     if (selected) {
@@ -236,44 +243,66 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
     ctx.fillText(String(i + 1).padStart(2, " "), 6, y + 9);
     ctx.fillStyle = selected ? themeColor("--text", "#e8eef4") : themeColor("--chart-rank-text", "#c5d0dc");
     ctx.fillText(cityName(c, lang), 28, y + 9);
-    const sl = trendOf(c, variable).sen_slope_per_decade;
+    const sl = it.value;
     const x1 = x0 + sl * scale;
-    ctx.fillStyle = sl >= 0 ? themeColor("--gold", "#e4b84a") : themeColor("--cool", "#3aa7c1");
-    ctx.fillRect(Math.min(x0, x1), y + 3, Math.max(2, Math.abs(x1 - x0)), 8);
+    const barX = Math.min(x0, x1);
+    const barW = Math.max(2, Math.abs(x1 - x0));
+    ctx.fillStyle = sl >= 0 ? themeColor("--warm", "#c41e3a") : themeColor("--cool", "#3aa7c1");
+    ctx.globalAlpha = (mode === "trend" && it.significant === false) ? 0.45 : 1;
+    ctx.fillRect(barX, y + 3, barW, 8);
+    ctx.globalAlpha = 1;
     ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
-    ctx.fillText((sl >= 0 ? "+" : "−") + Math.abs(sl).toFixed(2), w - 42, y + 9);
+    const label = mode === "year"
+      ? formatAnomaly(sl, variable)
+      : ((sl >= 0 ? "+" : "−") + Math.abs(sl).toFixed(spec.slopeDigits));
+    ctx.fillText(label, w - 52, y + 9);
   });
 }
 
-function renderRankingList(el, cities, selectedId, globalSlope, lang, variable) {
+function renderRankingList(el, cities, selectedId, globalSlope, lang, variable, opts) {
   variable = variable || "temp";
-  const unit = varSpec(variable).unit;
-  const caps = cities
-    .filter((c) => c.capital && trendOf(c, variable)?.sen_slope_per_decade != null)
-    .sort((a, b) => trendOf(b, variable).sen_slope_per_decade - trendOf(a, variable).sen_slope_per_decade);
-  const max = Math.max(...caps.map((c) => Math.abs(trendOf(c, variable).sen_slope_per_decade)), 0.2);
-  el.innerHTML = caps
-    .map((c, i) => {
-      const sl = trendOf(c, variable).sen_slope_per_decade;
+  opts = opts || {};
+  const mode = opts.mode || "trend";
+  const spec = varSpec(variable);
+  const items = rankingItems(cities, variable, { mode, year: opts.year, order: opts.order || "desc" });
+  if (!items.length) {
+    el.innerHTML = `<div class="rank-global">${t(lang, "no_data")}</div>`;
+    return;
+  }
+  const max = Math.max(...items.map((it) => Math.abs(it.value)), 0.2);
+  el.innerHTML = items
+    .map((it, i) => {
+      const sl = it.value;
       const w = Math.max(4, (Math.abs(sl) / max) * 100);
-      const sel = c.id === selectedId ? " selected" : "";
+      const sel = it.city.id === selectedId ? " selected" : "";
       const cool = sl < 0 ? " cool" : "";
-      const sign = sl >= 0 ? "+" : "−";
-      return `<div class="rank-row${sel}${cool}" data-id="${c.id}">
+      const ns = (mode === "trend" && it.significant === false) ? " ns" : "";
+      const label = mode === "year"
+        ? formatAnomaly(sl, variable)
+        : ((sl >= 0 ? "+" : "−") + Math.abs(sl).toFixed(spec.slopeDigits) + spec.unit);
+      return `<div class="rank-row${sel}${cool}${ns}" data-id="${it.city.id}">
         <span class="n">${i + 1}</span>
-        <span>${cityName(c, lang)}</span>
+        <span>${cityName(it.city, lang)}</span>
         <div><div class="bar" style="width:${w}%"></div></div>
-        <span>${sign}${Math.abs(sl).toFixed(varSpec(variable).slopeDigits)}${unit}</span>
+        <span>${label}</span>
       </div>`;
     })
     .join("");
-  const g = globalSlope != null ? ` · ${t(lang, "global_avg")} ${globalSlope >= 0 ? "+" : "−"}${Math.abs(globalSlope).toFixed(2)}°C / 10 yr` : "";
+  const g = (mode !== "year" && variable === "temp" && globalSlope != null)
+    ? ` · ${t(lang, "global_avg")} ${globalSlope >= 0 ? "+" : "−"}${Math.abs(globalSlope).toFixed(2)}°C / 10 yr`
+    : "";
   const src = (typeof rankingSourceCitation === "function") ? rankingSourceCitation(variable, lang) : "";
-  el.insertAdjacentHTML("beforeend", `<div class="rank-global">${t(lang, "rank_caption", caps.length)}${g}${src ? " · " + src : ""}</div>`);
+  const cap = mode === "year"
+    ? t(lang, "rank_caption_year", items.length, opts.year)
+    : t(lang, "rank_caption", items.length);
+  el.insertAdjacentHTML("beforeend", `<div class="rank-global">${cap}${g}${src ? " · " + src : ""}</div>`);
   const sel = el.querySelector(".rank-row.selected");
   if (sel) {
-    const top = sel.offsetTop - (el.clientHeight - sel.offsetHeight) / 2;
-    el.scrollTop = Math.max(0, top);
+    const rowH = sel.getBoundingClientRect().height || 22;
+    const er = el.getBoundingClientRect();
+    const sr = sel.getBoundingClientRect();
+    const raw = el.scrollTop + (sr.top - er.top) - rowH * 2;
+    el.scrollTop = Math.max(0, Math.round(raw / rowH) * rowH);
   }
 }
 

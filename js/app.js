@@ -2,6 +2,9 @@ const state = {
   lang: "zh",
   variable: "temp",
   year: 2025,
+  mapMode: "trend",
+  rankOrder: "desc",
+  ui: null,
   playingYear: false,
   place: null,
   chartMode: "trend",
@@ -23,6 +26,8 @@ const state = {
   watchId: null,
   liveFetchId: 0,
 };
+window.__echoState = state;
+
 
 async function loadJSON(path) {
   const res = await fetch(path);
@@ -200,11 +205,11 @@ function refreshModeUI() {
     }
   }
   const rankingCard = document.getElementById("ranking-card");
-  if (rankingCard) rankingCard.hidden = !!local;
+  if (rankingCard) rankingCard.hidden = false;
   document.querySelectorAll('#chart-tabs button[data-chart="ranking"]').forEach((b) => {
-    b.hidden = !!local;
+    b.hidden = isMobileUI();
   });
-  if (local && state.chartMode === "ranking") state.chartMode = "trend";
+  if (isMobileUI() && state.chartMode === "ranking") state.chartMode = "trend";
 }
 
 async function loadPointPlace(lat, lon, { fromGeo = false, speak = false } = {}) {
@@ -406,12 +411,7 @@ async function boot() {
   applyOfficialDataToCities();
   applyExtraDataToCities();
 
-  const years = grid.years;
-  const slider = document.getElementById("year-slider");
-  slider.min = years[0];
-  slider.max = years[years.length - 1];
-  state.year = years.includes(2025) ? 2025 : years[years.length - 1];
-  slider.value = state.year;
+  applyUIMode();
 
   state.map = new EchoMap(document.getElementById("map"), document.getElementById("map-tooltip"));
   state.map.setData({ land, grid, cities: capitals.cities });
@@ -434,11 +434,24 @@ function bindUI() {
     state.variable = e.target.value;
     refreshView();
   };
+  document.getElementById("map-mode-trend").onclick = () => setMapMode("trend");
+  document.getElementById("map-mode-year").onclick = () => setMapMode("year");
   document.getElementById("year-slider").oninput = (e) => {
     state.year = +e.target.value;
-    stopYearPlay();
-    refreshYear();
+    if (state.mapMode !== "year") setMapMode("year");
+    else {
+      stopYearPlay();
+      refreshYear();
+      refreshCharts();
+    }
   };
+  const sortBtn = document.getElementById("rank-sort");
+  if (sortBtn) {
+    sortBtn.onclick = () => {
+      state.rankOrder = state.rankOrder === "desc" ? "asc" : "desc";
+      refreshCharts();
+    };
+  }
   document.getElementById("play-year").onclick = toggleYearPlay;
   document.getElementById("voice-btn").onclick = () => startTour();
   document.getElementById("voice-pause").onclick = togglePause;
@@ -479,19 +492,68 @@ function bindUI() {
     if (city) setPlace({ type: "city", city, lat: city.lat, lon: city.lon }, { speak: false, fetchEvents: true });
   });
   window.addEventListener("resize", () => {
-    state.map.resize();
+    applyUIMode();
+    if (state.map) state.map.resize();
     refreshCharts();
-    maybeShowMobileStart();
   });
+  window.matchMedia("(pointer: coarse)").addEventListener("change", () => applyUIMode());
+}
+
+function uiOverride() {
+  const q = new URLSearchParams(location.search);
+  if (q.get("desktop") === "1") return "desktop";
+  if (q.get("mobile") === "1") return "mobile";
+  return null;
+}
+
+function detectUI() {
+  const ov = uiOverride();
+  if (ov) return ov;
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  return (window.innerWidth <= 768 || coarse) ? "mobile" : "desktop";
+}
+
+function isMobileUI() {
+  return (state.ui || document.documentElement.getAttribute("data-ui")) === "mobile";
+}
+
+function applyUIMode() {
+  const ui = detectUI();
+  const prev = state.ui || document.documentElement.getAttribute("data-ui");
+  document.documentElement.setAttribute("data-ui", ui);
+  state.ui = ui;
+  const qr = document.getElementById("tour-qr");
+  if (qr) qr.hidden = ui !== "desktop";
+  if (ui === "desktop") {
+    const start = document.getElementById("mobile-start");
+    if (start) start.hidden = true;
+    const box = document.getElementById("subtitles");
+    if (box) box.hidden = true;
+    hideTourUI();
+    setTourPrompt("");
+    if (state.narrator && (state.narrator.speaking || state.narrator.waitingForNext)) {
+      state.narrator.stop();
+    }
+    const btn = document.getElementById("voice-btn");
+    const pauseBtn = document.getElementById("voice-pause");
+    const nextBtn = document.getElementById("tour-next");
+    if (btn) btn.classList.remove("playing");
+    if (pauseBtn) pauseBtn.classList.add("hidden");
+    if (nextBtn) nextBtn.classList.add("hidden");
+  } else if (prev !== "mobile") {
+    maybeShowMobileStart();
+  } else {
+    maybeShowMobileStart();
+  }
 }
 
 function isMobile() {
-  return window.matchMedia("(max-width: 900px)").matches;
+  return isMobileUI();
 }
 
 function maybeShowMobileStart() {
   const el = document.getElementById("mobile-start");
-  if (isMobile() && !el.dataset.dismissed) el.hidden = false;
+  if (isMobileUI() && !el.dataset.dismissed) el.hidden = false;
   else el.hidden = true;
 }
 
@@ -538,16 +600,59 @@ async function onPick(sel) {
   await loadPointPlace(sel.lat, sel.lon, { fromGeo: false, speak: false });
 }
 
+function currentYearList() {
+  if (!state.data?.cities) return [];
+  return variableYears(state.data.cities, state.variable);
+}
+
+function syncYearSlider() {
+  const years = currentYearList();
+  const slider = document.getElementById("year-slider");
+  if (!slider || !years.length) return;
+  slider.min = years[0];
+  slider.max = years[years.length - 1];
+  slider.step = 1;
+  if (!years.includes(state.year)) {
+    const le = [...years].reverse().find((y) => y <= state.year);
+    state.year = le != null ? le : years[years.length - 1];
+  }
+  slider.value = state.year;
+}
+
+function setMapMode(mode) {
+  state.mapMode = mode === "year" ? "year" : "trend";
+  if (state.mapMode === "trend") stopYearPlay();
+  refreshView();
+}
+
+function syncMapModeUI() {
+  const trendBtn = document.getElementById("map-mode-trend");
+  const yearBtn = document.getElementById("map-mode-year");
+  if (trendBtn) trendBtn.classList.toggle("active", state.mapMode === "trend");
+  if (yearBtn) yearBtn.classList.toggle("active", state.mapMode === "year");
+  const row = document.getElementById("slider-row");
+  if (row) row.classList.toggle("is-trend", state.mapMode === "trend");
+}
+
 function refreshView() {
   applyStaticI18n(state.lang);
   refreshModeUI();
   syncVariableOptions();
+  syncYearSlider();
+  syncMapModeUI();
   const hintKey = "map_hint_" + (state.variable || "temp");
-  const layerCite = (typeof mapLayerCitation === "function") ? mapLayerCitation(state.variable, state.lang) : "";
-  document.getElementById("map-hint").textContent = [t(state.lang, hintKey), layerCite].filter(Boolean).join(" ");
-  state.map.setVariable(state.variable);
-  state.map.setYear(state.year);
-  state.map.drawLegend(document.getElementById("legend"), state.lang);
+  const modeHint = t(state.lang, state.mapMode === "year" ? "map_hint_mode_year" : "map_hint_mode_trend");
+  document.getElementById("map-hint").textContent = [t(state.lang, hintKey), modeHint].filter(Boolean).join(" ");
+  if (state.map) {
+    state.map.setVariable(state.variable);
+    state.map.setMode(state.mapMode);
+    state.map.setYear(state.year);
+    state.map.drawLegend(document.getElementById("legend"), state.lang);
+  }
+  const srcFull = document.getElementById("map-source-full");
+  if (srcFull && typeof mapLayerCitation === "function") {
+    srcFull.textContent = mapLayerCitation(state.variable, state.lang);
+  }
   refreshYear();
   refreshConclusion();
   refreshSoWhat();
@@ -557,11 +662,22 @@ function refreshView() {
 }
 
 function refreshYear() {
-  document.getElementById("year-label").textContent = state.year;
-  document.getElementById("year-note").textContent = state.year === 2026 ? t(state.lang, "year_partial") : "";
-  state.map.setYear(state.year);
+  const label = document.getElementById("year-label");
+  const note = document.getElementById("year-note");
+  if (state.mapMode === "trend") {
+    label.textContent = t(state.lang, "map_mode_trend");
+    note.textContent = "";
+  } else {
+    label.textContent = state.year;
+    note.textContent = "";
+  }
+  if (state.map) {
+    state.map.setMode(state.mapMode);
+    state.map.setYear(state.year);
+    state.map.drawLegend(document.getElementById("legend"), state.lang);
+  }
   const btn = document.getElementById("play-year");
-  btn.querySelector(".play-icon").textContent = state.playingYear ? "❚❚" : "▶";
+  if (btn) btn.querySelector(".play-icon").textContent = state.playingYear ? "❚❚" : "▶";
 }
 
 function toggleYearPlay() {
@@ -570,19 +686,28 @@ function toggleYearPlay() {
 }
 
 function startYearPlay() {
-  const years = state.grid.years;
+  const years = currentYearList();
+  if (!years.length) return;
+  if (state.mapMode !== "year") {
+    state.mapMode = "year";
+    syncMapModeUI();
+  }
   state.playingYear = true;
   if (state.year >= years[years.length - 1]) state.year = years[0];
+  document.getElementById("year-slider").value = state.year;
   refreshYear();
+  refreshCharts();
   state.yearTimer = setInterval(() => {
-    const i = years.indexOf(state.year);
-    if (i < 0 || i >= years.length - 1) {
+    const list = currentYearList();
+    const i = list.indexOf(state.year);
+    if (i < 0 || i >= list.length - 1) {
       stopYearPlay();
       return;
     }
-    state.year = years[i + 1];
+    state.year = list[i + 1];
     document.getElementById("year-slider").value = state.year;
     refreshYear();
+    refreshCharts();
   }, 280);
 }
 
@@ -660,15 +785,27 @@ function refreshCharts() {
   const caption = document.getElementById("chart-caption");
   const mode = isMobile() && state.narrator.speaking ? state.chartMode : (isMobile() ? "trend" : state.chartMode);
   document.querySelectorAll("#chart-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.chart === state.chartMode));
+  const rankOpts = { mode: state.mapMode, year: state.year, order: state.rankOrder };
+  const gSlope = state.variable === "temp" && state.mapMode !== "year" ? state.data.global.temp.sen_slope_per_decade : null;
+  const rankTitle = document.getElementById("ranking-title");
+  if (rankTitle) {
+    rankTitle.textContent = state.mapMode === "year"
+      ? t(state.lang, "ranking_title_year", state.year)
+      : t(state.lang, "ranking_title");
+  }
+  const sortBtn = document.getElementById("rank-sort");
+  if (sortBtn) sortBtn.textContent = t(state.lang, state.rankOrder === "asc" ? "rank_sort_asc" : "rank_sort_desc");
   if (mode === "ranking") {
-    title.textContent = t(state.lang, "ranking_title");
-    const gSlope = state.variable === "temp" ? state.data.global.temp.sen_slope_per_decade : null;
-    drawRankingChart(canvas, state.data.cities, place.city && place.city.id, gSlope, state.lang, state.variable);
+    title.textContent = rankTitle ? rankTitle.textContent : t(state.lang, "ranking_title");
+    drawRankingChart(canvas, state.data.cities, place.city && place.city.id, gSlope, state.lang, state.variable, rankOpts);
     const legend = document.getElementById("chart-legend");
     if (legend) { legend.innerHTML = ""; legend.hidden = true; }
     caption.hidden = false;
     const rankCite = (typeof rankingSourceCitation === "function") ? rankingSourceCitation(state.variable, state.lang) : "";
-    caption.textContent = [t(state.lang, "rank_caption", place.city?.temp_rank_n || 0), rankCite].filter(Boolean).join(" ");
+    const cap = state.mapMode === "year"
+      ? t(state.lang, "rank_caption_year", rankingItems(state.data.cities, state.variable, rankOpts).length, state.year)
+      : t(state.lang, "rank_caption", rankingItems(state.data.cities, state.variable, rankOpts).length);
+    caption.textContent = [cap, rankCite].filter(Boolean).join(" ");
   } else {
     title.textContent = t(state.lang, "chart_trend");
     drawTrendChart(canvas, place, state.variable, state.lang);
@@ -682,9 +819,10 @@ function refreshCharts() {
     document.getElementById("ranking"),
     state.data.cities,
     place.city && place.city.id,
-    state.variable === "temp" ? state.data.global.temp.sen_slope_per_decade : null,
+    gSlope,
     state.lang,
-    state.variable
+    state.variable,
+    rankOpts
   );
 }
 
@@ -819,6 +957,7 @@ function applyTourTopic(topic) {
 }
 
 function startTour() {
+  if (!isMobileUI()) return;
   if (!state.place) return;
   if (state.place.loading) return;
   const topics = buildTourTopics(state.place, state.lang, state.events);
@@ -941,6 +1080,7 @@ function togglePause() {
 }
 
 function beginMobileTour(requestGeo) {
+  if (!isMobileUI()) return;
   hideMobileStart();
   const startAudio = () => startTour();
   if (!requestGeo || !navigator.geolocation) {

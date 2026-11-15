@@ -8,6 +8,7 @@ class EchoMap {
     this.cities = [];
     this.year = 2025;
     this.variable = "temp";
+    this.mode = "trend";
     this.selected = null;
     this.hover = null;
     this.dpr = 1;
@@ -17,6 +18,7 @@ class EchoMap {
     this.baseDirty = true;
     this.onPick = null;
     this.plot = { x: 0, y: 0, w: 0, h: 0 };
+    this._domains = {};
     this._bind();
   }
 
@@ -39,6 +41,7 @@ class EchoMap {
     this.land = land;
     this.grid = grid;
     this.cities = cities || [];
+    this._domains = {};
     this.baseDirty = true;
     this.draw();
   }
@@ -54,9 +57,18 @@ class EchoMap {
     this.draw();
   }
 
+  setMode(mode) {
+    this.mode = mode === "year" ? "year" : "trend";
+    this.draw();
+  }
+
   setSelected(sel) {
     this.selected = sel;
     this.draw();
+  }
+
+  _isMobileUI() {
+    return document.documentElement.getAttribute("data-ui") === "mobile";
   }
 
   _bind() {
@@ -94,13 +106,26 @@ class EchoMap {
     return { x: ev.clientX - r.left, y: ev.clientY - r.top };
   }
 
-  _hitCity(x, y, px = 8) {
+  _cityVisible(c) {
+    if (this.mode === "year") return anomalyOf(c, this.variable, this.year) != null;
+    return hasTrendData(trendOf(c, this.variable));
+  }
+
+  _cityRadius(c, selected) {
+    if (selected) return 6.6;
+    return c.featured ? 5.2 : 4.4;
+  }
+
+  _hitCity(x, y) {
     let best = null;
-    let bestD = px * px;
+    let bestD = Infinity;
     for (const c of this.cities) {
+      if (!this._cityVisible(c)) continue;
       const p = this.lonLatToXY(c.lon, c.lat);
+      const selected = this.selected && this.selected.city && this.selected.city.id === c.id;
+      const hitR = this._cityRadius(c, selected) + 5;
       const d = (p.x - x) ** 2 + (p.y - y) ** 2;
-      if (d <= bestD) {
+      if (d <= hitR * hitR && d < bestD) {
         bestD = d;
         best = c;
       }
@@ -108,23 +133,63 @@ class EchoMap {
     return best;
   }
 
+  _sourceLabel(city, lang) {
+    const id = typeof citySourceId === "function" ? citySourceId(city, this.variable) : null;
+    if (typeof officialSourceLabel === "function") return officialSourceLabel(id, lang);
+    return lang === "zh" ? "NASA 資料" : "NASA data";
+  }
+
   _showTip(ev, hover) {
     const lang = document.documentElement.lang.startsWith("zh") ? "zh" : "en";
     const r = this.canvas.getBoundingClientRect();
     let html = `${hover.lat.toFixed(1)}°, ${hover.lon.toFixed(1)}°`;
+    const spec = varSpec(this.variable);
     if (hover.city) {
-      html = `<strong>${cityName(hover.city, lang)}</strong><br>${html}`;
-    }
-    const gval = this._gridValue(hover.lon, hover.lat, this.year);
-    if (this.variable === "temp" && gval != null) {
-      html += `<br>${gval > 0 ? "+" : ""}${gval.toFixed(2)} °C`;
+      const name = cityName(hover.city, lang);
+      const src = this._sourceLabel(hover.city, lang);
+      const srcLine = (lang === "zh" ? "資料來源：" : "Source: ") + src;
+      if (this.mode === "year") {
+        const a = anomalyOf(hover.city, this.variable, this.year);
+        if (!a) {
+          html = `<strong>${name}</strong><br>${t(lang, "no_data")}`;
+        } else {
+          const raw = `${fmtDec(a.raw, spec.digits)} ${spec.unit}`;
+          const anom = formatAnomaly(a.value, this.variable);
+          const vs = lang === "zh"
+            ? `距平常：${anom}（相對 ${a.baselineLo}–${a.baselineHi}）`
+            : `vs. normal: ${anom} (vs ${a.baselineLo}–${a.baselineHi})`;
+          html = `<strong>${name}</strong><br>${this.year}：${raw}<br>${vs}<br>${srcLine}`;
+        }
+      } else {
+        const tr = trendOf(hover.city, this.variable);
+        if (hasTrendData(tr)) {
+          const sl = tr.sen_slope_per_decade;
+          const val = `${sl >= 0 ? "+" : "−"}${Math.abs(sl).toFixed(spec.slopeDigits)} ${spec.unit}${t(lang, "per_decade_unit")}`;
+          const sig = isTrendSignificant(tr)
+            ? (lang === "zh" ? "趨勢顯著（α=0.05）" : "significant trend (α=0.05)")
+            : (lang === "zh" ? "趨勢未達顯著（α=0.05）" : "trend not significant (α=0.05)");
+          html = `<strong>${name}</strong><br>${val}<br>${sig}<br>${srcLine}`;
+        } else {
+          html = `<strong>${name}</strong><br>${t(lang, "no_data")}`;
+        }
+      }
+    } else if (this.variable === "temp") {
+      const gy = this.mode === "trend" ? this._gistempBackdropYear() : this.year;
+      const gval = this._gridValue(hover.lon, hover.lat, gy);
+      if (gval != null) {
+        const lab = lang === "zh" ? "GISTEMP 距平" : "GISTEMP anomaly";
+        html += `<br>${lab} ${gval > 0 ? "+" : ""}${gval.toFixed(2)} °C`;
+        html += lang === "zh"
+          ? "<br>資料來源：NASA GISS GISTEMP v4"
+          : "<br>Source: NASA GISS GISTEMP v4";
+      }
     }
     this.tooltip.innerHTML = html;
     this.tooltip.classList.remove("hidden");
     const tx = ev.clientX - r.left;
     const ty = ev.clientY - r.top;
-    this.tooltip.style.left = `${Math.min(tx, r.width - 160)}px`;
-    this.tooltip.style.top = `${Math.min(ty, r.height - 60)}px`;
+    this.tooltip.style.left = `${Math.min(tx, r.width - 200)}px`;
+    this.tooltip.style.top = `${Math.min(ty, r.height - 90)}px`;
   }
 
   resize() {
@@ -193,17 +258,26 @@ class EchoMap {
       cityWarm: v("--city-warm", "#f0b35a"),
       cityCool: v("--city-cool", "#6ec3d4"),
       cityNa: v("--city-na", "#cccccc"),
+      hollowFill: v("--panel", "#ffffff"),
+      dotOutline: "#12151A",
     };
+  }
+
+  _lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  _rgba(r, g, b, a) {
+    return `rgba(${r | 0},${g | 0},${b | 0},${a})`;
   }
 
   _tempColor(v, alpha = 0.78) {
     if (v == null || Number.isNaN(v)) return null;
     if (alpha === 0.78 && this._themeKey() === "2") alpha = 0.88;
     const t = Math.max(-1, Math.min(1, v / 2.2)); // -2.2..+2.2 °C
-    // diverging: cool teal → pale → warm gold → red
     let r, g, b;
     if (t < 0) {
-      const u = t + 1; // 0..1
+      const u = t + 1;
       r = 40 + 180 * u;
       g = 90 + 130 * u;
       b = 140 + 70 * u;
@@ -215,34 +289,81 @@ class EchoMap {
     return `rgba(${r | 0},${g | 0},${b | 0},${alpha})`;
   }
 
-  _precipColor(slopeDec) {
-    if (slopeDec == null) return "rgba(180,180,180,0.7)";
-    const t = Math.max(-1, Math.min(1, slopeDec / 150));
-    if (t >= 0) return `rgba(${40 + 20 * t | 0},${90 + 80 * t | 0},${140 + 40 * t | 0},0.95)`;
-    return `rgba(${180 - 20 * t | 0},${140 + 40 * t | 0},${70 | 0},0.95)`;
+  // Diverging: blue = decrease, slate mid, crimson = increase.
+  // A saturation floor keeps small trends readable on the grey-blue map.
+  _divergingColor(t, alpha = 1) {
+    if (t == null || Number.isNaN(t)) return null;
+    const u = Math.max(-1, Math.min(1, t));
+    const mid = [210, 214, 220];
+    const blue = [11, 110, 153];
+    const red = [196, 30, 58];
+    if (Math.abs(u) < 1e-9) return this._rgba(mid[0], mid[1], mid[2], alpha);
+    const end = u < 0 ? blue : red;
+    const w = 0.34 + 0.66 * Math.abs(u);
+    return this._rgba(
+      this._lerp(mid[0], end[0], w),
+      this._lerp(mid[1], end[1], w),
+      this._lerp(mid[2], end[2], w),
+      alpha
+    );
   }
 
-  _soilColor(slopeDec) {
-    return this._slopeColor(slopeDec, 0.4);
+  // Sequential: visible sand → deep crimson (higher = darker).
+  _sequentialColor(t, alpha = 1) {
+    if (t == null || Number.isNaN(t)) return null;
+    const u = Math.max(0, Math.min(1, t));
+    const stops = [
+      [0, 214, 176, 92],
+      [0.35, 214, 140, 70],
+      [0.7, 196, 70, 48],
+      [1, 139, 26, 42],
+    ];
+    let i = 0;
+    while (i < stops.length - 2 && u > stops[i + 1][0]) i++;
+    const a = stops[i];
+    const b = stops[i + 1];
+    const f = (u - a[0]) / Math.max(1e-6, b[0] - a[0]);
+    return this._rgba(this._lerp(a[1], b[1], f), this._lerp(a[2], b[2], f), this._lerp(a[3], b[3], f), alpha);
   }
 
-  _slopeColor(slopeDec, scale, alpha = 0.95) {
-    if (slopeDec == null) return "rgba(180,180,180,0.7)";
-    const t = Math.max(-1, Math.min(1, slopeDec / scale));
-    if (t >= 0) return `rgba(${40 + 20 * t | 0},${90 + 80 * t | 0},${140 + 40 * t | 0},${alpha})`;
-    return `rgba(${180 - 20 * Math.abs(t) | 0},${140 + 40 * t | 0},${70 | 0},${alpha})`;
+  _trendDomain() {
+    const key = "t:" + this.variable;
+    if (!this._domains[key]) this._domains[key] = trendValueDomain(this.cities, this.variable);
+    return this._domains[key];
   }
 
-  _dotColor(city) {
-    if (this.variable === "temp") {
-      const sl = city.temp?.sen_slope_per_decade;
-      const theme = this._theme();
-      return sl == null ? theme.cityNa : sl >= 0 ? theme.cityWarm : theme.cityCool;
+  _yearDomain() {
+    const key = "a:" + this.variable;
+    if (!this._domains[key]) this._domains[key] = anomalyDomain(this.cities, this.variable);
+    return this._domains[key];
+  }
+
+  _circleStyle(city) {
+    if (this.mode === "year") {
+      const a = anomalyOf(city, this.variable, this.year);
+      if (!a) return null;
+      const d = this._yearDomain();
+      const scale = d ? d.scale : 1;
+      const t = Math.max(-1, Math.min(1, a.value / scale));
+      return { fill: this._divergingColor(t, 0.96), hollow: false };
     }
-    if (this.variable === "precip") return this._precipColor(city.precip?.sen_slope_per_decade);
-    const spec = varSpec(this.variable);
-    const sl = trendOf(city, this.variable)?.sen_slope_per_decade;
-    return this._slopeColor(sl, spec.legendScale);
+    const tr = trendOf(city, this.variable);
+    if (!hasTrendData(tr)) return null;
+    const d = this._trendDomain();
+    const scale = d ? d.scale : (varSpec(this.variable).legendScale || 1);
+    const t = Math.max(-1, Math.min(1, tr.sen_slope_per_decade / scale));
+    const fill = this._divergingColor(t, 0.96);
+    const sig = isTrendSignificant(tr);
+    return { fill, hollow: !sig };
+  }
+
+  _gistempBackdropYear() {
+    const years = this.grid && this.grid.years;
+    if (!years || !years.length) return this.year;
+    if (years.includes(2025)) return 2025;
+    const last = years[years.length - 1];
+    if (last === 2026 && years.length > 1) return years[years.length - 2];
+    return last;
   }
 
   _drawBase() {
@@ -255,7 +376,6 @@ class EchoMap {
     ctx.fillRect(0, 0, this.width, this.height);
     ctx.fillStyle = theme.ocean;
     ctx.fillRect(this.plot.x, this.plot.y, this.plot.w, this.plot.h);
-    // land
     if (this.land?.polygons) {
       ctx.fillStyle = theme.land;
       ctx.strokeStyle = theme.landStroke;
@@ -267,7 +387,6 @@ class EchoMap {
         for (const [lon, lat] of ring) {
           const p = this.lonLatToXY(lon, lat);
           if (prev && Math.abs(lon - prev[0]) > 180) {
-            // antimeridian break
             if (started) ctx.closePath();
             ctx.fill();
             ctx.beginPath();
@@ -284,7 +403,6 @@ class EchoMap {
         ctx.stroke();
       }
     }
-    // graticule
     ctx.save();
     ctx.strokeStyle = theme.graticule;
     ctx.fillStyle = theme.graticuleText;
@@ -331,7 +449,8 @@ class EchoMap {
     ctx.drawImage(this.baseLayer, 0, 0, this.width, this.height);
 
     if (this.variable === "temp" && this.grid) {
-      const yi = this.grid.years.indexOf(this.year);
+      const gridYear = this.mode === "trend" ? this._gistempBackdropYear() : this.year;
+      const yi = this.grid.years.indexOf(gridYear);
       if (yi >= 0) {
         const vals = this.grid.values[yi];
         const cw = Math.abs((this.grid.dlon / 360) * this.width) + 0.6;
@@ -350,7 +469,6 @@ class EchoMap {
       }
     }
 
-    // coastlines on top of the anomaly grid
     if (this.land?.polygons) {
       ctx.save();
       const theme = this._theme();
@@ -376,19 +494,55 @@ class EchoMap {
       ctx.restore();
     }
 
-    // cities
     const theme = this._theme();
-    for (const c of this.cities) {
+    const selId = this.selected && this.selected.city && this.selected.city.id;
+    const drawable = this.cities.filter((c) => this._cityVisible(c));
+    drawable.sort((a, b) => {
+      const as = a.id === selId ? 1 : 0;
+      const bs = b.id === selId ? 1 : 0;
+      if (as !== bs) return as - bs;
+      const ah = this._circleStyle(a)?.hollow ? 0 : 1;
+      const bh = this._circleStyle(b)?.hollow ? 0 : 1;
+      return ah - bh;
+    });
+    for (const c of drawable) {
       const p = this.lonLatToXY(c.lon, c.lat);
-      const selected = this.selected && this.selected.city && this.selected.city.id === c.id;
-      let fill = this._dotColor(c);
+      const selected = c.id === selId;
+      const style = this._circleStyle(c);
+      if (!style) continue;
+      const r = this._cityRadius(c, selected);
       ctx.beginPath();
-      ctx.fillStyle = fill;
-      ctx.strokeStyle = selected ? theme.dotSelectedStroke : theme.dotStroke;
-      ctx.lineWidth = selected ? 2.4 : 1;
-      ctx.arc(p.x, p.y, selected ? 5.5 : c.featured ? 4.2 : 3.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      if (style.hollow) {
+        ctx.fillStyle = theme.hollowFill;
+        ctx.fill();
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = style.fill;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = theme.dotOutline;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = style.fill;
+        ctx.fill();
+        ctx.strokeStyle = theme.dotOutline;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      if (selected) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 2.2, 0, Math.PI * 2);
+        ctx.strokeStyle = theme.dotSelectedStroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 3.2, 0, Math.PI * 2);
+        ctx.strokeStyle = theme.dotOutline;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
     }
 
     if (this.selected && this.selected.type === "point") {
@@ -405,37 +559,63 @@ class EchoMap {
     }
   }
 
-  drawLegend(container, lang) {
-    const titleKey = "legend_" + (this.variable || "temp");
-    const title = t(lang, titleKey);
-    const host = container.parentElement;
-    if (host && this.plot.w) {
-      container.style.right = `${Math.max(8, this.width - (this.plot.x + this.plot.w) + 10)}px`;
-      container.style.bottom = `${Math.max(8, this.height - (this.plot.y + this.plot.h) + 10)}px`;
-      container.style.left = "auto";
-    }
-    const source = (typeof mapLayerCitation === "function") ? mapLayerCitation(this.variable, lang) : "";
-    container.innerHTML = `<div>${title}</div><canvas width="140" height="10"></canvas><div class="leg-scale"></div>${source ? `<div class="leg-source">${source}</div>` : ""}`;
-    const c = container.querySelector("canvas");
-    const x = c.getContext("2d");
-    const w = c.width;
-    if (this.variable === "temp") {
-      for (let i = 0; i < w; i++) {
-        const v = -2.2 + (4.4 * i) / (w - 1);
+  _paintScale(canvas, kind, domain) {
+    const x = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    for (let i = 0; i < w; i++) {
+      const u = i / Math.max(1, w - 1);
+      if (kind === "diverging") {
+        const t = -1 + 2 * u;
+        x.fillStyle = this._divergingColor(t, 1);
+      } else if (kind === "gistemp") {
+        const v = -2.2 + 4.4 * u;
         x.fillStyle = this._tempColor(v, 1);
-        x.fillRect(i, 0, 1, c.height);
+      } else {
+        x.fillStyle = this._sequentialColor(u, 1);
       }
-      container.querySelector(".leg-scale").innerHTML = `<span>−2.2°C</span><span>0</span><span>+2.2°C</span>`;
-    } else {
-      const spec = varSpec(this.variable);
-      const scale = spec.legendScale;
-      for (let i = 0; i < w; i++) {
-        const v = -scale + (2 * scale * i) / (w - 1);
-        const color = this.variable === "precip" ? this._precipColor(v) : this._slopeColor(v, scale);
-        x.fillStyle = String(color).replace("0.95", "1");
-        x.fillRect(i, 0, 1, c.height);
-      }
-      container.querySelector(".leg-scale").innerHTML = `<span>${spec.legendLo}</span><span>${spec.legendMid}</span><span>${spec.legendHi}</span>`;
+      x.fillRect(i, 0, 1, h);
     }
+  }
+
+  drawLegend(container, lang) {
+    container.style.right = "";
+    container.style.bottom = "";
+    container.style.left = "";
+    container.style.position = "";
+    const source = (typeof mapLayerShortCitation === "function")
+      ? mapLayerShortCitation(this.variable, lang)
+      : ((typeof mapLayerCitation === "function") ? mapLayerCitation(this.variable, lang) : "");
+    const title = this.mode === "year"
+      ? legendYearTitle(this.variable, lang, this.cities)
+      : t(lang, "legend_trend_" + (this.variable || "temp"));
+    const spec = varSpec(this.variable);
+    const ticks = (lo, mid, hi) =>
+      `<div class="leg-scale"><span>${lo}</span><span>${mid}</span><span>${hi}</span></div>`;
+
+    let scaleHtml = "";
+    let extra = "";
+    if (this.mode === "year") {
+      const d = this._yearDomain();
+      const scale = d ? d.scale : 1;
+      const digits = anomalyDigits(this.variable);
+      const unit = anomalyUnit(this.variable);
+      const lo = `−${Number(scale).toFixed(digits)}`;
+      const hi = `+${Number(scale).toFixed(digits)}`;
+      const unitLabel = unit === "%" ? "%" : " " + unit;
+      scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + unitLabel)}`;
+    } else {
+      const d = this._trendDomain();
+      const scale = d ? d.scale : spec.legendScale;
+      const digits = spec.slopeDigits;
+      const lo = `−${Number(scale).toFixed(digits)}`;
+      const hi = `+${Number(scale).toFixed(digits)}`;
+      scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + " " + spec.unit)}`;
+      extra += `<div class="leg-note">${t(lang, "legend_ns_short")}</div>`;
+    }
+    container.innerHTML = `<div class="leg-title">${title}</div>${scaleHtml}${extra}${source ? `<div class="leg-source">${source}</div>` : ""}`;
+    container.querySelectorAll("canvas.leg-bar").forEach((c) => {
+      this._paintScale(c, c.getAttribute("data-kind"), null);
+    });
   }
 }

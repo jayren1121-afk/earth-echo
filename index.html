@@ -6,8 +6,17 @@
   <meta name="theme-color" content="#f5f7fa" />
   <script>
     (function () {
-      var t = new URLSearchParams(location.search).get("theme");
-      document.documentElement.setAttribute("data-theme", (t === "1" || t === "3") ? t : "2");
+      var q = new URLSearchParams(location.search);
+      var th = q.get("theme");
+      document.documentElement.setAttribute("data-theme", (th === "1" || th === "3") ? th : "2");
+      var ui;
+      if (q.get("desktop") === "1") ui = "desktop";
+      else if (q.get("mobile") === "1") ui = "mobile";
+      else {
+        var coarse = window.matchMedia("(pointer: coarse)").matches;
+        ui = (window.innerWidth <= 768 || coarse) ? "mobile" : "desktop";
+      }
+      document.documentElement.setAttribute("data-ui", ui);
     })();
   </script>
   <title>Earth Echo · 地球回聲</title>
@@ -54,9 +63,25 @@
           <canvas id="map" width="1200" height="600"></canvas>
           <div class="map-tooltip hidden" id="map-tooltip"></div>
         </div>
-        <div class="legend" id="legend"></div>
       </div>
-      <div class="slider-row">
+      <div class="map-foot" id="map-foot">
+        <aside class="tour-qr" id="tour-qr" hidden>
+          <a class="tour-qr-link" href="https://jayren1121-afk.github.io/earth-echo/?mobile=1" target="_blank" rel="noopener noreferrer">
+            <img src="data/qr-mobile-tour.svg" width="88" height="88" alt="手機版語音導覽 QR code / Mobile voice tour" data-i18n-alt="qr_alt" />
+          </a>
+          <p class="tour-qr-cap" data-i18n="qr_caption">用手機掃描</p>
+        </aside>
+        <div class="legend" id="legend"></div>
+        <details class="map-source-details" id="map-source-details">
+          <summary data-i18n="source_more">資料來源</summary>
+          <p id="map-source-full"></p>
+        </details>
+      </div>
+      <div class="slider-row" id="slider-row">
+        <div class="map-mode" role="group" data-i18n-aria="map_mode_group" aria-label="地圖顯示">
+          <button type="button" id="map-mode-trend" class="active" data-i18n="map_mode_trend">趨勢</button>
+          <button type="button" id="map-mode-year" data-i18n="map_mode_year">該年與平常相比</button>
+        </div>
         <button type="button" id="play-year" class="icon-btn" aria-label="Play">
           <span class="play-icon">▶</span>
         </button>
@@ -140,8 +165,11 @@
         </article>
       </section>
 
-      <section class="card ranking-card desktop-only" id="ranking-card">
-        <h3 data-i18n="ranking_title">首都升溫排名</h3>
+      <section class="card ranking-card" id="ranking-card">
+        <div class="card-head">
+          <h3 id="ranking-title" data-i18n="ranking_title">首都趨勢排名</h3>
+          <button type="button" id="rank-sort" class="sort-btn" data-i18n="rank_sort_desc">由高到低</button>
+        </div>
         <div class="ranking-scroll" id="ranking"></div>
       </section>
 
