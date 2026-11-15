@@ -6,12 +6,14 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   const ctx = canvas.getContext("2d");
   const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   const w = canvas.clientWidth || 400;
-  const h = Math.max(200, Math.round(w * 0.52));
+  const mobile = document.documentElement.getAttribute("data-ui") === "mobile";
+  const h = Math.max(mobile ? 300 : 200, Math.round(w * (mobile ? 0.75 : 0.52)));
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   canvas.style.height = `${h}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = themeColor("--panel", "#ffffff");
+  ctx.fillRect(0, 0, w, h);
 
   const spec = varSpec(variable);
   const seriesKey = spec.key;
@@ -29,7 +31,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
 
   const showStat = typeof canShowStatProjection === "function" && canShowStatProjection(place, variable);
   const proj = showStat ? tr.projection : null;
-  const pad = { l: 48, r: 16, t: 16, b: 28 };
+  const pad = { l: 52, r: 16, t: 18, b: 32 };
   const xmin = pts[0].year;
   const nex = (variable === "temp") && place.nex ? place.nex.temp : null;
   let xmax = pts[pts.length - 1].year;
@@ -58,19 +60,19 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
 
   // axes
   ctx.strokeStyle = themeColor("--chart-axis", "rgba(18, 40, 70, 0.28)");
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(pad.l, pad.t);
   ctx.lineTo(pad.l, h - pad.b);
   ctx.lineTo(w - pad.r, h - pad.b);
   ctx.stroke();
   ctx.fillStyle = themeColor("--chart-label", "#3a4656");
-  ctx.font = "11px Outfit, sans-serif";
+  ctx.font = "12px Outfit, sans-serif";
   const yTicks = 4;
   for (let i = 0; i <= yTicks; i++) {
     const v = ymin + ((ymax - ymin) * i) / yTicks;
     const y = Y(v);
-    ctx.fillText(fmtDec(v, spec.chartDigits), 6, y + 3);
+    ctx.fillText(fmtDec(v, spec.chartDigits), 6, y + 4);
     ctx.strokeStyle = themeColor("--chart-grid", "rgba(18, 40, 70, 0.10)");
     ctx.beginPath();
     ctx.moveTo(pad.l, y);
@@ -80,7 +82,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   for (const yr of [xmin, 2000, pts[pts.length - 1].year, xmax]) {
     if (yr == null) continue;
     ctx.fillStyle = themeColor("--chart-label", "#3a4656");
-    ctx.fillText(String(yr), X(yr) - 12, h - 8);
+    ctx.fillText(String(yr), X(yr) - 14, h - 10);
   }
 
   // projection band + dashed line
@@ -103,7 +105,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
     ctx.beginPath();
     ctx.setLineDash([5, 5]);
     ctx.strokeStyle = themeColor("--gold", "#0a3d91");
-    ctx.lineWidth = 1.7;
+    ctx.lineWidth = 2.3;
     proj.series.forEach((s, i) => {
       const x = X(s.year);
       const y = Y(s.value);
@@ -139,7 +141,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
       ctx.beginPath();
       ctx.setLineDash([2, 3]);
       ctx.strokeStyle = band.stroke;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 2.2;
       series.forEach((pt, i) => {
         if (i === 0) ctx.moveTo(X(pt.year), Y(pt.mean));
         else ctx.lineTo(X(pt.year), Y(pt.mean));
@@ -155,7 +157,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
     const y2 = tr.sen_intercept + tr.sen_slope_per_year * pts[pts.length - 1].year;
     ctx.beginPath();
     ctx.strokeStyle = themeColor("--sen-stroke", "rgba(58,167,193,0.85)");
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2.3;
     ctx.moveTo(X(pts[0].year), Y(y1));
     ctx.lineTo(X(pts[pts.length - 1].year), Y(y2));
     ctx.stroke();
@@ -164,7 +166,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   // observed
   ctx.beginPath();
   ctx.strokeStyle = themeColor("--chart-line", "#12151a");
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 2.4;
   pts.forEach((p, i) => {
     if (i === 0) ctx.moveTo(X(p.year), Y(p.value));
     else ctx.lineTo(X(p.year), Y(p.value));
@@ -173,14 +175,14 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   pts.forEach((p) => {
     ctx.beginPath();
     ctx.fillStyle = themeColor("--chart-line", "#12151a");
-    ctx.arc(X(p.year), Y(p.value), 1.6, 0, Math.PI * 2);
+    ctx.arc(X(p.year), Y(p.value), 2.2, 0, Math.PI * 2);
     ctx.fill();
   });
 
   const unit = spec.unit;
   ctx.fillStyle = themeColor("--chart-label", "#3a4656");
-  ctx.font = "10px Outfit, sans-serif";
-  ctx.fillText(unit, 8, 12);
+  ctx.font = "12px Outfit, sans-serif";
+  ctx.fillText(unit, 8, 14);
 }
 
 function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variable, opts) {
@@ -239,7 +241,7 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
       ctx.fillRect(0, y - 3, w, rowH);
     }
     ctx.fillStyle = selected ? themeColor("--gold", "#0a3d91") : themeColor("--chart-label", "#3a4656");
-    ctx.font = "11px Outfit, sans-serif";
+    ctx.font = "12px Outfit, sans-serif";
     ctx.fillText(String(i + 1).padStart(2, " "), 6, y + 9);
     ctx.fillStyle = selected ? themeColor("--text", "#12151a") : themeColor("--chart-rank-text", "#12151a");
     ctx.fillText(cityName(c, lang), 28, y + 9);

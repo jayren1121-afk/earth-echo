@@ -428,6 +428,7 @@ function bindUI() {
   document.getElementById("lang-zh").onclick = () => setLang("zh");
   document.getElementById("lang-en").onclick = () => setLang("en");
   bindTourQr();
+  bindLegendAndSources();
   document.getElementById("variable").onchange = (e) => {
     state.variable = e.target.value;
     refreshView();
@@ -490,11 +491,9 @@ function bindUI() {
     if (city) setPlace({ type: "city", city, lat: city.lat, lon: city.lon }, { speak: false, fetchEvents: true });
   });
   window.addEventListener("resize", () => {
-    applyUIMode();
     if (state.map) state.map.resize();
     refreshCharts();
   });
-  window.matchMedia("(pointer: coarse)").addEventListener("change", () => applyUIMode());
 }
 
 function uiOverride() {
@@ -504,11 +503,20 @@ function uiOverride() {
   return null;
 }
 
+function isRealPhoneOrTablet() {
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const noHover = window.matchMedia("(hover: none)").matches;
+  if (coarse && noHover) return true;
+  try {
+    if (navigator.userAgentData && navigator.userAgentData.mobile) return true;
+  } catch (e) {}
+  return /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || "");
+}
+
 function detectUI() {
   const ov = uiOverride();
   if (ov) return ov;
-  const coarse = window.matchMedia("(pointer: coarse)").matches;
-  return (window.innerWidth <= 768 || coarse) ? "mobile" : "desktop";
+  return isRealPhoneOrTablet() ? "mobile" : "desktop";
 }
 
 function isMobileUI() {
@@ -516,7 +524,8 @@ function isMobileUI() {
 }
 
 function applyUIMode() {
-  const ui = detectUI();
+  // Mode is chosen once at load and then locked. Resize/zoom must not flip it.
+  const ui = state.ui || detectUI();
   const prev = state.ui || document.documentElement.getAttribute("data-ui");
   document.documentElement.setAttribute("data-ui", ui);
   state.ui = ui;
@@ -561,6 +570,170 @@ function hideMobileStart() {
   el.dataset.dismissed = "1";
 }
 
+
+function syncLegendToggle() {
+  syncLegendNoteToggle();
+}
+
+function syncLegendNoteToggle() {
+  const foot = document.getElementById("map-foot");
+  const btn = document.getElementById("legend-note-toggle");
+  if (!foot || !btn) return;
+  const open = foot.classList.contains("is-note-open");
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  const key = open ? "legend_note_hide" : "legend_note_show";
+  btn.setAttribute("data-i18n", key);
+  btn.textContent = t(state.lang, key);
+  btn.setAttribute("aria-label", t(state.lang, key));
+}
+
+function positionLegendOverlay() {
+  const foot = document.getElementById("map-foot");
+  if (!foot) return;
+  if (typeof isMobileUI === "function" ? isMobileUI() : document.documentElement.getAttribute("data-ui") === "mobile") {
+    foot.style.left = "";
+    foot.style.right = "";
+    foot.style.top = "";
+    foot.style.bottom = "";
+    foot.style.width = "";
+    foot.style.maxWidth = "";
+    return;
+  }
+  const stage = document.querySelector(".map-stage");
+  const map = typeof state !== "undefined" ? state.map : null;
+  if (!stage || !map || !map.canvas || !map.plot) return;
+
+  const margin = 8;
+  const avoidIds = { santiago: 1, lima: 1, wellington: 1, buenos_aires: 1 };
+  const stageR = stage.getBoundingClientRect();
+  const canvasR = map.canvas.getBoundingClientRect();
+  const toPage = (pt) => ({ x: canvasR.left + pt.x, y: canvasR.top + pt.y });
+  const hits = (pad) => {
+    const fr = foot.getBoundingClientRect();
+    const cities = map.cities || [];
+    const pts = [];
+    for (const c of cities) {
+      if (!c || !avoidIds[c.id]) continue;
+      if (c.lat == null || c.lon == null) continue;
+      const xy = map.lonLatToXY(c.lon, c.lat);
+      if (!xy) continue;
+      const p = toPage(xy);
+      if (p.x >= fr.left - pad && p.x <= fr.right + pad && p.y >= fr.top - pad && p.y <= fr.bottom + pad) {
+        pts.push(p);
+      }
+    }
+    return pts;
+  };
+
+  foot.style.right = "auto";
+  foot.style.top = "auto";
+  foot.style.width = "216px";
+  foot.style.maxWidth = "230px";
+  foot.style.left = margin + "px";
+  foot.style.bottom = margin + "px";
+
+  if (!hits(10).length) return;
+
+  const plotBottom = canvasR.top + map.plot.y + map.plot.h;
+  const plotLeft = canvasR.left + map.plot.x;
+  const fh = foot.getBoundingClientRect().height;
+  const fw = foot.getBoundingClientRect().width;
+
+  // Prefer the empty band below the geographic plot (letterbox / Southern Ocean).
+  const cssBottomBelow = stageR.bottom - (plotBottom + 4 + fh);
+  if (stageR.bottom - plotBottom >= fh + 4 && cssBottomBelow >= 4) {
+    foot.style.bottom = cssBottomBelow + "px";
+    if (!hits(10).length) return;
+  }
+  foot.style.bottom = margin + "px";
+
+  // Or the empty band to the left of the plot.
+  if (plotLeft - stageR.left >= fw + 4) {
+    foot.style.left = margin + "px";
+    if (!hits(10).length) return;
+  }
+
+  foot.style.left = "4px";
+  foot.style.bottom = "4px";
+  let overlapping = hits(10);
+  if (!overlapping.length) return;
+
+  // Sit just below the lowest overlapping capital, if it still fits.
+  const maxY = Math.max.apply(null, overlapping.map((p) => p.y));
+  let cssBottom = stageR.bottom - (maxY + 12 + fh);
+  if (cssBottom < 4) cssBottom = 4;
+  foot.style.bottom = cssBottom + "px";
+  overlapping = hits(10);
+  if (!overlapping.length) return;
+
+  // Otherwise keep the box to the left of the leftmost overlapping capital.
+  const minX = Math.min.apply(null, overlapping.map((p) => p.x));
+  const desiredRight = minX - 12;
+  let maxW = desiredRight - stageR.left - 4;
+  if (maxW < 200) maxW = Math.max(168, maxW);
+  if (maxW < fw) {
+    foot.style.maxWidth = maxW + "px";
+    foot.style.width = maxW + "px";
+  }
+  let left = desiredRight - foot.getBoundingClientRect().width - stageR.left;
+  if (left < 4) left = 4;
+  foot.style.left = left + "px";
+}
+
+function bindLegendAndSources() {
+  const foot = document.getElementById("map-foot");
+  const toggle = document.getElementById("legend-note-toggle");
+  const openBtn = document.getElementById("source-open");
+  const modal = document.getElementById("source-modal");
+  const closeBtn = document.getElementById("source-modal-close");
+  const backdrop = document.getElementById("source-modal-backdrop");
+  if (toggle && foot) {
+    toggle.addEventListener("click", () => {
+      foot.classList.toggle("is-note-open");
+      syncLegendNoteToggle();
+      positionLegendOverlay();
+    });
+    syncLegendNoteToggle();
+  }
+  if (openBtn) openBtn.addEventListener("click", () => openSourceModal());
+  if (closeBtn) closeBtn.addEventListener("click", () => closeSourceModal());
+  if (backdrop) backdrop.addEventListener("click", () => closeSourceModal());
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    if (modal && !modal.hidden) {
+      ev.preventDefault();
+      closeSourceModal();
+    }
+  });
+}
+
+function fillSourceModal() {
+  const srcFull = document.getElementById("map-source-full");
+  const srcBase = document.getElementById("map-source-baseline");
+  const modalFull = document.getElementById("source-modal-full");
+  const modalBase = document.getElementById("source-modal-baseline");
+  if (modalFull) modalFull.textContent = srcFull ? srcFull.textContent : "";
+  if (modalBase) {
+    const show = srcBase && !srcBase.hidden && srcBase.textContent;
+    modalBase.textContent = show ? srcBase.textContent : "";
+    modalBase.hidden = !show;
+  }
+}
+
+function openSourceModal() {
+  const modal = document.getElementById("source-modal");
+  if (!modal) return;
+  fillSourceModal();
+  modal.hidden = false;
+  const dialog = modal.querySelector(".source-modal-dialog");
+  if (dialog && typeof dialog.focus === "function") dialog.focus();
+}
+
+function closeSourceModal() {
+  const modal = document.getElementById("source-modal");
+  if (!modal) return;
+  modal.hidden = true;
+}
 
 function bindTourQr() {
   const box = document.getElementById("tour-qr");
@@ -685,6 +858,7 @@ function refreshView() {
     state.map.setMode(state.mapMode);
     state.map.setYear(state.year);
     state.map.drawLegend(document.getElementById("legend"), state.lang);
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (state.map) state.map.resize(); }));
   }
   const srcFull = document.getElementById("map-source-full");
   if (srcFull && typeof mapLayerCitation === "function") {
@@ -700,6 +874,8 @@ function refreshView() {
       srcBase.hidden = true;
     }
   }
+  fillSourceModal();
+  syncLegendToggle();
   refreshYear();
   refreshConclusion();
   refreshSoWhat();
@@ -722,6 +898,7 @@ function refreshYear() {
     state.map.setMode(state.mapMode);
     state.map.setYear(state.year);
     state.map.drawLegend(document.getElementById("legend"), state.lang);
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (state.map) state.map.resize(); }));
   }
   const btn = document.getElementById("play-year");
   if (btn) btn.querySelector(".play-icon").textContent = state.playingYear ? "❚❚" : "▶";

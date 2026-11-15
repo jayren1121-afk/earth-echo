@@ -21,19 +21,26 @@ class EchoMap {
     this._bind();
   }
 
+  _fitPlotIn(region, ratio) {
+    if (!region || region.w <= 0 || region.h <= 0) return null;
+    if (region.w / region.h > ratio) {
+      const w = region.h * ratio;
+      return { x: region.x + (region.w - w) / 2, y: region.y, w, h: region.h, area: w * region.h };
+    }
+    const h = region.w / ratio;
+    return { x: region.x, y: region.y + (region.h - h) / 2, w: region.w, h, area: region.w * h };
+  }
+
   _layoutPlot() {
     const ratio = 2; // equirectangular
     if (!this.width || !this.height) {
       this.plot = { x: 0, y: 0, w: 0, h: 0 };
       return;
     }
-    if (this.width / this.height > ratio) {
-      const w = this.height * ratio;
-      this.plot = { x: (this.width - w) / 2, y: 0, w, h: this.height };
-    } else {
-      const h = this.width / ratio;
-      this.plot = { x: 0, y: (this.height - h) / 2, w: this.width, h };
-    }
+    // Fill the whole map stage. The legend floats over the ocean and must
+    // not reserve or shrink this plot rectangle.
+    const fit = this._fitPlotIn({ x: 0, y: 0, w: this.width, h: this.height }, ratio);
+    this.plot = fit ? { x: fit.x, y: fit.y, w: fit.w, h: fit.h } : { x: 0, y: 0, w: this.width, h: this.height };
   }
 
   setData({ land, cities }) {
@@ -217,6 +224,10 @@ class EchoMap {
     this.baseLayer.height = this.canvas.height;
     this.baseDirty = true;
     this.draw();
+    if (this.canvas && this.plot) {
+      this.canvas.setAttribute("data-plot", [this.plot.x, this.plot.y, this.plot.w, this.plot.h].join(","));
+    }
+    if (typeof positionLegendOverlay === "function") positionLegendOverlay();
   }
 
   lonLatToXY(lon, lat) {
@@ -545,7 +556,7 @@ class EchoMap {
       const unitLabel = unit === "%" ? "%" : " " + unit;
       scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + unitLabel)}`;
       extra += this._sizeHintHtml(lang, { includeText: false });
-      extra += `<div class="leg-note leg-baseline">${legendYearNote(this.variable, lang, this.cities)}</div>`;
+      extra += `<div class="leg-extra" id="leg-extra"><div class="leg-note leg-baseline">${legendYearNote(this.variable, lang, this.cities)}</div>${source ? `<div class="leg-source">${source}</div>` : ""}</div>`;
     } else {
       const d = this._trendDomain();
       const scale = d ? d.scale : spec.legendScale;
@@ -553,10 +564,10 @@ class EchoMap {
       const lo = `−${Number(scale).toFixed(digits)}`;
       const hi = `+${Number(scale).toFixed(digits)}`;
       scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + " " + spec.unit)}`;
-      extra += this._sizeHintHtml(lang, { includeText: true });
-      extra += `<div class="leg-note">${t(lang, "legend_ns_short")}</div>`;
+      extra += this._sizeHintHtml(lang, { includeText: false });
+      extra += `<div class="leg-extra" id="leg-extra"><div class="leg-note">${t(lang, "legend_size")}</div><div class="leg-note">${t(lang, "legend_ns_short")}</div>${source ? `<div class="leg-source">${source}</div>` : ""}</div>`;
     }
-    container.innerHTML = `<div class="leg-title">${title}</div>${scaleHtml}${extra}${source ? `<div class="leg-source">${source}</div>` : ""}`;
+    container.innerHTML = `<div class="leg-title">${title}</div>${scaleHtml}${extra}`;
     container.querySelectorAll("canvas.leg-bar").forEach((c) => {
       this._paintScale(c, c.getAttribute("data-kind"), null);
     });

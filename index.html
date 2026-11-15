@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="color-scheme" content="light" />
-  <meta name="supported-color-schemes" content="light" />
+  <meta name="color-scheme" content="light only" />
+  <meta name="supported-color-schemes" content="light only" />
   <meta name="theme-color" content="#f5f7fa" />
   <script>
     (function () {
@@ -13,17 +13,21 @@
       var theme = (th === "1" || th === "3") ? th : "2";
       document.documentElement.setAttribute("data-theme", theme);
       var light = theme === "2";
-      document.documentElement.style.colorScheme = light ? "light" : "dark";
+      document.documentElement.style.colorScheme = light ? "only light" : "dark";
       var cs = document.querySelector('meta[name="color-scheme"]');
-      if (cs) cs.setAttribute("content", light ? "light" : "dark");
+      if (cs) cs.setAttribute("content", light ? "light only" : "dark");
       var scs = document.querySelector('meta[name="supported-color-schemes"]');
-      if (scs) scs.setAttribute("content", light ? "light" : "dark");
+      if (scs) scs.setAttribute("content", light ? "light only" : "dark");
       var ui;
       if (q.get("desktop") === "1") ui = "desktop";
       else if (q.get("mobile") === "1") ui = "mobile";
       else {
         var coarse = window.matchMedia("(pointer: coarse)").matches;
-        ui = (window.innerWidth <= 768 || coarse) ? "mobile" : "desktop";
+        var noHover = window.matchMedia("(hover: none)").matches;
+        var uaMobile = false;
+        try { uaMobile = !!(navigator.userAgentData && navigator.userAgentData.mobile); } catch (e) {}
+        if (!uaMobile) uaMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || "");
+        ui = ((coarse && noHover) || uaMobile) ? "mobile" : "desktop";
       }
       document.documentElement.setAttribute("data-ui", ui);
     })();
@@ -33,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css?v=e8784de" />
 </head>
 <body>
   <header class="site-header">
@@ -84,14 +88,18 @@
           <canvas id="map" width="1200" height="600"></canvas>
           <div class="map-tooltip hidden" id="map-tooltip"></div>
         </div>
-      </div>
-      <div class="map-foot" id="map-foot">
-        <div class="legend" id="legend"></div>
-        <details class="map-source-details" id="map-source-details">
-          <summary data-i18n="source_more">資料來源</summary>
-          <p id="map-source-full"></p>
-          <p id="map-source-baseline" class="map-source-baseline" hidden></p>
-        </details>
+        <div class="map-foot" id="map-foot">
+          <div class="legend" id="legend"></div>
+          <div class="map-foot-actions">
+            <button type="button" class="legend-note-toggle" id="legend-note-toggle" aria-expanded="false" aria-controls="leg-extra" data-i18n="legend_note_show">說明 ▸</button>
+            <button type="button" class="source-open" id="source-open" data-i18n="source_more">資料來源</button>
+          </div>
+          <details class="map-source-details" id="map-source-details">
+            <summary data-i18n="source_more">資料來源</summary>
+            <p id="map-source-full"></p>
+            <p id="map-source-baseline" class="map-source-baseline" hidden></p>
+          </details>
+        </div>
       </div>
       <div class="slider-row" id="slider-row">
         <div class="map-mode" role="group" data-i18n-aria="map_mode_group" aria-label="地圖顯示">
@@ -126,6 +134,7 @@
         </div>
         <div class="tour-bar hidden" id="tour-bar">
           <p class="tour-prompt" id="tour-prompt" hidden></p>
+          <p class="tour-chip-label" data-i18n="tour_chip_label">點選切換項目：</p>
           <div class="tour-chips" id="tour-chips" role="group" aria-label="Tour topics"></div>
         </div>
       </section>
@@ -219,14 +228,28 @@
   </div>
 
 
-  <script src="js/theme.js"></script>
-  <script src="js/i18n.js"></script>
-  <script src="js/vars.js"></script>
-  <script src="js/stats.js"></script>
-  <script src="js/map.js"></script>
-  <script src="js/charts.js"></script>
-  <script src="js/sowhat.js"></script>
-  <script src="js/narration.js"></script>
-  <script src="js/app.js"></script>
+  <div class="source-modal" id="source-modal" hidden>
+    <div class="source-modal-backdrop" id="source-modal-backdrop"></div>
+    <div class="source-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="source-modal-title" tabindex="-1">
+      <div class="source-modal-head">
+        <h2 id="source-modal-title" data-i18n="source_more">資料來源</h2>
+        <button type="button" class="source-modal-close" id="source-modal-close" data-i18n-aria="source_close" aria-label="關閉">×</button>
+      </div>
+      <div class="source-modal-body">
+        <p id="source-modal-full"></p>
+        <p id="source-modal-baseline" class="map-source-baseline" hidden></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/theme.js?v=e8784de"></script>
+  <script src="js/i18n.js?v=e8784de"></script>
+  <script src="js/vars.js?v=e8784de"></script>
+  <script src="js/stats.js?v=e8784de"></script>
+  <script src="js/map.js?v=e8784de"></script>
+  <script src="js/charts.js?v=e8784de"></script>
+  <script src="js/sowhat.js?v=e8784de"></script>
+  <script src="js/narration.js?v=e8784de"></script>
+  <script src="js/app.js?v=e8784de"></script>
 </body>
 </html>
