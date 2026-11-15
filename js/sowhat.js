@@ -114,6 +114,38 @@ function placeLabel(place, lang) {
   return lang === "zh" ? "這裡" : "This place";
 }
 
+function isPointPlace(place) {
+  return !!(place && place.type === "point");
+}
+
+/** Spoken stand-in for a tour-mode point. Coordinates stay on screen only. */
+function speechPlaceName(place, lang) {
+  if (isPointPlace(place)) return lang === "zh" ? "目前你這裡" : "Where you are now";
+  return placeLabel(place, lang);
+}
+
+function spokenItemName(variable, lang) {
+  if (typeof topicLabel === "function") return topicLabel(variable, lang);
+  const zh = { temp: "氣溫", precip: "降雨", humidity: "空氣濕度", soil: "土壤濕度", groundwater: "地下水", radiation: "太陽輻射", co2: "二氧化碳" };
+  const en = { temp: "temperature", precip: "rainfall", humidity: "air humidity", soil: "soil moisture", groundwater: "groundwater", radiation: "solar radiation", co2: "carbon dioxide" };
+  const pack = lang === "zh" ? zh : en;
+  return pack[variable] || shortQty(variable, lang);
+}
+
+/** Data exists but the trend is not clear. Do not say "we don't know". */
+function speechNoClearChange(place, variable, lang) {
+  const item = spokenItemName(variable, lang);
+  if (isPointPlace(place)) {
+    return lang === "zh"
+      ? `目前你這裡${item}沒有明顯變化。`
+      : `Where you are now, ${item} shows no clear change.`;
+  }
+  const name = speechPlaceName(place, lang);
+  if (lang === "zh") return `${name}的${item}沒有明顯變化。`;
+  return `In ${name}, ${item} shows no clear change.`;
+}
+
+
 function annualPeriodMeans(place, key, firstYear, lastYear) {
   const pts = (place.annual || [])
     .filter((r) => r[key] != null && Number.isFinite(r[key]))
@@ -829,8 +861,14 @@ function speechFindingInference(place, variable, lang) {
 
 function speechFinding(place, variable, lang) {
   const b = bundleFor(place, variable);
-  const name = placeLabel(place, lang);
+  const name = speechPlaceName(place, lang);
+  const point = isPointPlace(place);
   if (!b.tr || b.tr.sen_slope_per_decade == null) {
+    if (point) {
+      return lang === "zh"
+        ? "目前你這裡沒有這項資料，我們不知道。"
+        : "Where you are now, there is no data for this, so we don't know.";
+    }
     return lang === "zh"
       ? `${name}目前沒有這項資料，我們不知道。`
       : `${name}: there is no data for this, so we don't know.`;
@@ -862,10 +900,15 @@ function speechFinding(place, variable, lang) {
         : `rainfall has ${down ? "fallen" : "risen"}`;
       fact = `${change[0].toUpperCase() + change.slice(1)} ${spanRain}, but the longer record does not show a lasting ${down ? "decline" : "increase"}.`;
     }
-    return joinSpeech([fact, inferenceSpeech(speechFindingInference(place, variable, lang), lang)], lang);
+    return fact;
   }
 
   if (sourcesDisagree(place, variable)) {
+    if (point) {
+      return lang === "zh"
+        ? "目前你這裡兩筆資料方向不一樣，目前判斷不了，我們不知道。"
+        : "Where you are now, the two records disagree, so we cannot tell, and we don't know.";
+    }
     return lang === "zh"
       ? `${name}兩筆資料方向不一樣，目前判斷不了，我們不知道。`
       : `${name}: the two records disagree, so we cannot tell, and we don't know.`;
@@ -882,28 +925,32 @@ function speechFinding(place, variable, lang) {
       const y1 = fb.recent_years ? fb.recent_years[1] || fb.recent_years[0] : b.tr.last_year;
       fact = lang === "zh"
         ? `${name}從 ${y0} 年的約 ${a0} ppm，增加到 ${y1} 年的約 ${a1} ppm。這是一段短紀錄。`
-        : `In ${name}, it rose from about ${a0} ppm in ${y0} to about ${a1} ppm in ${y1}. This is a short record.`;
+        : (point
+          ? `Where you are now, it rose from about ${a0} ppm in ${y0} to about ${a1} ppm in ${y1}. This is a short record.`
+          : `In ${name}, it rose from about ${a0} ppm in ${y0} to about ${a1} ppm in ${y1}. This is a short record.`);
     } else {
       fact = lang === "zh"
         ? `${name}的二氧化碳，這段短紀錄在上升。`
-        : `In ${name}, carbon dioxide is rising in this short record.`;
+        : (point
+          ? "Where you are now, carbon dioxide is rising in this short record."
+          : `In ${name}, carbon dioxide is rising in this short record.`);
     }
-    return joinSpeech([fact, inferenceSpeech(speechFindingInference(place, variable, lang), lang)], lang);
+    return fact;
   }
 
   if (b.tr.confidence !== "clear") {
-    return lang === "zh"
-      ? `${name}目前資料看不出明確變化，我們不知道。`
-      : `${name}: the data do not show a clear change, so we don't know.`;
+    return speechNoClearChange(place, variable, lang);
   }
 
   let fact;
   if (lang === "zh") {
     fact = `${name}每 10 年大約${verb} ${abs} ${unit}。`;
+  } else if (point) {
+    fact = `Where you are now, ${qty} has ${verb} by about ${abs} ${unit} per decade.`;
   } else {
     fact = `In ${name}, ${qty} has ${verb} by about ${abs} ${unit} per decade.`;
   }
-  return joinSpeech([fact, inferenceSpeech(speechFindingInference(place, variable, lang), lang)], lang);
+  return fact;
 }
 
 function speechMeaning(place, variable, lang) {
@@ -949,14 +996,7 @@ function speechMeaning(place, variable, lang) {
       const rhMeans = meansForTrend(place.annual, "rh2m", place.rh);
       const qvUp = b.tr.sen_slope_per_decade > 0;
       const rhDown = place.rh.sen_slope_per_decade < 0;
-      if (qvUp && rhDown) {
-        parts.push(inferenceSpeech(
-          lang === "zh"
-            ? "相對濕度略降，可能是天氣變熱後空氣能裝的水氣變多"
-            : "relative humidity fell a little, perhaps because warmer air can hold more moisture",
-          lang
-        ));
-      } else if (rhMeans) {
+      if (rhMeans) {
         const r0 = fmtDec(rhMeans.period_mean_baseline, 1);
         const r1 = fmtDec(rhMeans.period_mean_recent, 1);
         parts.push(lang === "zh"
@@ -979,9 +1019,10 @@ function speechMeaning(place, variable, lang) {
   }
 
   if (b.tr.confidence !== "clear") {
+    const item = spokenItemName(variable, lang);
     return lang === "zh"
-      ? `${shortQty(b.kind, lang)}目前看不出明確變化，我們不知道。`
-      : `${shortQty(b.kind, lang)} does not show a clear change, so we don't know.`;
+      ? `${item}沒有明顯變化。`
+      : `${item.charAt(0).toUpperCase() + item.slice(1)} shows no clear change.`;
   }
 
   if (!fb) return unknownNowSpeech(lang);
@@ -1086,30 +1127,6 @@ function speechOutlook(place, variable, lang) {
   }
 
   if (!parts.length) return unknownFutureSpeech(lang);
-
-  if (nexText && canShowStatProjection(place, variable)) {
-    const nex = nexBundle(place, variable);
-    const p245 = lastNexPoint(nex && nex.ssp245);
-    const base = nex && nex.obs_baseline;
-    const d245 = p245 && base != null ? p245.mean - base : null;
-    const delta = outlookDelta(b);
-    if (d245 != null && delta != null && Math.sign(d245) === Math.sign(delta) && Math.sign(delta) !== 0) {
-      const up = delta > 0;
-      const infer = lang === "zh"
-        ? `未來可能繼續${b.kind === "temp" ? (up ? "變暖" : "變涼") : (up ? "增加" : "減少")}`
-        : `this may continue to ${b.kind === "temp" ? (up ? "warm" : "cool") : (up ? "rise" : "fall")}`;
-      parts.push(inferenceSpeech(infer, lang));
-    }
-  } else if (!nexText && canShowStatProjection(place, variable)) {
-    const delta = outlookDelta(b);
-    if (delta != null && Math.sign(delta) !== 0) {
-      const up = delta > 0;
-      const infer = lang === "zh"
-        ? `這裡的${shortQty(b.kind, lang)}可能繼續${b.kind === "temp" ? (up ? "變暖" : "變涼") : (up ? "增加" : "減少")}`
-        : `${shortQty(b.kind, lang)} here may continue to ${b.kind === "temp" ? (up ? "warm" : "cool") : (up ? "rise" : "fall")}`;
-      parts.push(inferenceSpeech(infer, lang));
-    }
-  }
   return joinSpeech(parts, lang);
 }
 
@@ -1291,7 +1308,7 @@ function buildSoWhat(place, variable, lang, globalTrend, opts) {
       text: tip,
       details: tipDetails(place, variable, lang),
       source: tip ? seriesCite : "",
-      speech: tip ? tipSpeech(place, variable, lang, { disclaimer: opts.spokenDisclaimer !== false }) : "",
+      speech: tip ? tipSpeech(place, variable, lang, { disclaimer: false }) : "",
     },
     outlook: {
       text: outlookText(place, variable, lang),
@@ -1300,4 +1317,107 @@ function buildSoWhat(place, variable, lang, globalTrend, opts) {
       speech: speechOutlook(place, variable, lang),
     },
   };
+}
+
+
+function trendDirectionForSummary(place, variable) {
+  const b = bundleFor(place, variable);
+  if (!b || !b.tr || b.tr.sen_slope_per_decade == null) return null;
+  if (b.kind === "co2" || b.tr.short_record) return null;
+  if (sourcesDisagree(place, variable)) return null;
+  if (b.tr.confidence !== "clear") return "flat";
+  const slope = b.tr.sen_slope_per_decade;
+  if (slope > 0) return "up";
+  if (slope < 0) return "down";
+  return "flat";
+}
+
+function zhSummaryBit(id, dir) {
+  const up = dir === "up";
+  if (id === "temp") return up ? "更熱" : "更涼";
+  if (id === "precip") return up ? "雨更多" : "雨更少";
+  if (id === "humidity") return up ? "更濕" : "較乾";
+  if (id === "soil") return up ? "土壤更濕" : "土壤較乾";
+  if (id === "groundwater") return up ? "地下水增加" : "地下水減少";
+  if (id === "radiation") return up ? "日照輻射更強" : "日照輻射較弱";
+  return "";
+}
+
+function enSummaryBit(id, dir) {
+  const up = dir === "up";
+  if (id === "temp") return { kind: "adj", text: up ? "hotter" : "cooler" };
+  if (id === "precip") return { kind: "adj", text: up ? "rainier" : "less rainy" };
+  if (id === "humidity") return { kind: "adj", text: up ? "more humid" : "less humid" };
+  if (id === "soil") return { kind: "with", text: up ? "wetter soils" : "drier soils" };
+  if (id === "groundwater") return { kind: "with", text: up ? "more groundwater" : "less groundwater" };
+  if (id === "radiation") return { kind: "with", text: up ? "stronger solar radiation" : "weaker solar radiation" };
+  return { kind: "adj", text: "" };
+}
+
+function joinListEn(items) {
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return items[0] + " and " + items[1];
+  return items.slice(0, -1).join(", ") + ", and " + items[items.length - 1];
+}
+
+function joinListZh(items) {
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return items[0] + "、" + items[1];
+  return items.slice(0, -1).join("、") + "，" + items[items.length - 1];
+}
+
+/** Voice-only closing summary for the mobile tour. Not shown on screen. */
+function tourSummarySpeech(place, lang) {
+  const close = lang === "zh" ? "以上僅供參考。" : "All of this is for reference only.";
+  const order = ["temp", "precip", "humidity", "soil", "groundwater", "radiation"];
+  const directed = [];
+  for (let i = 0; i < order.length; i++) {
+    const id = order[i];
+    const dir = trendDirectionForSummary(place, id);
+    if (dir === "up" || dir === "down") directed.push({ id, dir });
+  }
+  if (!directed.length) {
+    return lang === "zh"
+      ? "整體來看，這裡各項資料沒有很明顯的變化。" + close
+      : "Overall, the records here do not show a clear change. " + close;
+  }
+  if (lang === "zh") {
+    const bits = directed.map((item) => zhSummaryBit(item.id, item.dir)).filter(Boolean);
+    return "整體來看，這裡未來可能會變得" + joinListZh(bits) + "。" + close;
+  }
+  const bits = directed.map((item) => enSummaryBit(item.id, item.dir)).filter((b) => b.text);
+  const adjs = bits.filter((b) => b.kind === "adj").map((b) => b.text);
+  const withs = bits.filter((b) => b.kind === "with").map((b) => b.text);
+  let mid;
+  if (adjs.length && withs.length) mid = "become " + joinListEn(adjs) + ", with " + joinListEn(withs);
+  else if (adjs.length) mid = "become " + joinListEn(adjs);
+  else mid = "have " + joinListEn(withs);
+  return "Overall, this place may " + mid + ". " + close;
+}
+
+function collectTourSpeech(place, lang, events) {
+  const topics = buildTourTopics(place, lang, events || []);
+  const steps = [];
+  topics.forEach((topic) => {
+    (topic.segments || []).forEach((seg) => {
+      const raw = seg.speech || seg.text || "";
+      const spoken = typeof toSpoken === "function" ? toSpoken(raw, lang) : raw;
+      steps.push({
+        topic: topic.id,
+        label: topic.label,
+        part: seg.id,
+        speech: spoken,
+      });
+    });
+  });
+  const summaryRaw = tourSummarySpeech(place, lang);
+  const summary = typeof toSpoken === "function" ? toSpoken(summaryRaw, lang) : summaryRaw;
+  steps.push({
+    topic: "summary",
+    label: lang === "zh" ? "總結" : "Summary",
+    part: "summary",
+    speech: summary,
+    voiceOnly: true,
+  });
+  return { steps, summary, topicIds: topics.map((t) => t.id) };
 }

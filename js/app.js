@@ -777,6 +777,7 @@ window.setLang = function setLang(lang) {
   if (tourActive && state.place) {
     const topics = buildTourTopics(state.place, lang, state.events);
     state.tourTopics = topics;
+    n.summarySpeech = tourSummarySpeech(state.place, lang);
     if (typeof n.rebuildInLanguage === "function") n.rebuildInLanguage(lang, topics);
     else n.lang = lang;
   } else if (n) {
@@ -1246,7 +1247,7 @@ function startTour() {
   };
   state.lastNarratedLatLon = { lat: state.place.lat, lon: state.place.lon };
   state.narrator.onEnglishVoiceMissing = setVoiceLangNote;
-  state.narrator.startTopics(topics, state.lang);
+  state.narrator.startTopics(topics, state.lang, tourSummarySpeech(state.place, state.lang));
   renderTourChips();
 }
 
@@ -1337,3 +1338,9 @@ boot().catch((err) => {
   console.error(err);
   document.getElementById("conclusion").textContent = String(err);
 });
+
+function collectCurrentTourSpeech(lang) {
+  const L = lang || state.lang || "zh";
+  if (!state.place) return { steps: [], summary: "", topicIds: [] };
+  return collectTourSpeech(state.place, L, state.events);
+}

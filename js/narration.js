@@ -23,7 +23,6 @@ function buildTourTopics(place, lang, events) {
   const name = place.city ? cityName(place.city, lang) : place.label;
   const country = place.city ? countryName(place.city, lang) : "";
   const topics = [];
-  let saidDisclaimer = false;
   for (const id of TOUR_TOPIC_ORDER) {
     if (!topicHasData(place, id, events)) continue;
     const variable = id === "events" ? null : id;
@@ -52,8 +51,7 @@ function buildTourTopics(place, lang, events) {
         if (!text) continue;
         let speech = (card && card.speech) || text;
         if (part === "tip") {
-          speech = tipSpeech(place, variable, lang, { disclaimer: !saidDisclaimer });
-          if (speech && /一般參考|general reference/.test(speech)) saidDisclaimer = true;
+          speech = tipSpeech(place, variable, lang, { disclaimer: false });
         }
         segments.push({ id: part, chart: "trend", variable, text, speech });
       }
@@ -168,10 +166,11 @@ class Narrator {
     this._notifyEnglishVoice(false);
   }
 
-  startTopics(topics, lang) {
+  startTopics(topics, lang, summarySpeech) {
     this.stop();
     this.topics = topics || [];
     this.lang = lang;
+    this.summarySpeech = summarySpeech || "";
     if (!this.topics.length) {
       if (this.onEnd) this.onEnd();
       return;
@@ -432,11 +431,15 @@ class Narrator {
   }
 
   _speakDone() {
-    this._speakUtterance(t(this.lang, "tour_done"), () => {
+    const finish = () => {
       this.speaking = false;
       this.waitingForNext = false;
       if (this.onEnd) this.onEnd();
-    });
+    };
+    const summary = (this.summarySpeech || "").trim();
+    // Voice only: do not call onSegment, so the summary is never written on screen.
+    if (summary) this._speakUtterance(summary, finish);
+    else this._speakUtterance(t(this.lang, "tour_done"), finish);
   }
 
   currentTopic() {
