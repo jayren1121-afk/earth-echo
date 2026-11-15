@@ -604,6 +604,7 @@ class EchoMap {
       const hi = `+${Number(scale).toFixed(digits)}`;
       const unitLabel = unit === "%" ? "%" : " " + unit;
       scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + unitLabel)}`;
+      extra += `<div class="leg-note leg-baseline">${t(lang, "legend_baseline_note")}</div>`;
     } else {
       const d = this._trendDomain();
       const scale = d ? d.scale : spec.legendScale;
