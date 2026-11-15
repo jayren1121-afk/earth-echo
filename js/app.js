@@ -1181,6 +1181,39 @@ function applyTourTopic(topic) {
   renderTourChips();
 }
 
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined"
+    && window.matchMedia
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Scroll the Next button and nearby chips into view when the tour is waiting. */
+function revealTourNext() {
+  const btn = document.getElementById("tour-next");
+  if (!btn || btn.classList.contains("hidden")) return;
+  const target = btn.closest(".conclusion-card") || btn;
+  const reduce = prefersReducedMotion();
+  const go = () => {
+    if (typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({
+        block: "start",
+        inline: "nearest",
+        behavior: reduce ? "auto" : "smooth",
+      });
+    }
+    btn.classList.remove("tour-next-pulse");
+    void btn.offsetWidth;
+    btn.classList.add("tour-next-pulse");
+    if (btn._pulseTimer) clearTimeout(btn._pulseTimer);
+    btn._pulseTimer = setTimeout(() => {
+      btn.classList.remove("tour-next-pulse");
+      btn._pulseTimer = null;
+    }, 1800);
+  };
+  requestAnimationFrame(go);
+}
+
 function startTour() {
   if (!isMobileUI()) return;
   if (!state.place) return;
@@ -1237,6 +1270,7 @@ function startTour() {
     setTourPrompt(prompt);
     refreshSoWhat();
     renderTourChips();
+    revealTourNext();
   };
   state.narrator.onEnd = () => {
     btn.classList.remove("playing");
@@ -1279,6 +1313,7 @@ function showTourStepsPreview() {
     setTourPrompt(prompt);
     refreshSoWhat();
     renderTourChips();
+    revealTourNext();
   };
   state.narrator.topics = topics;
   state.narrator.lang = state.lang;
