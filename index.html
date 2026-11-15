@@ -3,12 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
   <meta name="theme-color" content="#f5f7fa" />
   <script>
     (function () {
       var q = new URLSearchParams(location.search);
       var th = q.get("theme");
-      document.documentElement.setAttribute("data-theme", (th === "1" || th === "3") ? th : "2");
+      var theme = (th === "1" || th === "3") ? th : "2";
+      document.documentElement.setAttribute("data-theme", theme);
+      var light = theme === "2";
+      document.documentElement.style.colorScheme = light ? "light" : "dark";
+      var cs = document.querySelector('meta[name="color-scheme"]');
+      if (cs) cs.setAttribute("content", light ? "light" : "dark");
+      var scs = document.querySelector('meta[name="supported-color-schemes"]');
+      if (scs) scs.setAttribute("content", light ? "light" : "dark");
       var ui;
       if (q.get("desktop") === "1") ui = "desktop";
       else if (q.get("mobile") === "1") ui = "mobile";
@@ -102,6 +111,7 @@
             <button type="button" id="voice-pause" class="icon-btn hidden" data-i18n-aria="pause">暫停</button>
             <button type="button" id="tour-next" class="next-btn hidden" data-i18n="next_topic" data-i18n-aria="next_topic">下一則</button>
           </div>
+          <p class="voice-lang-note" id="voice-lang-note" hidden>This device has no English voice, so the tour may not sound like English.</p>
         </div>
         <div class="place-sub">
           <span class="mode-pill" id="mode-badge" hidden></span>

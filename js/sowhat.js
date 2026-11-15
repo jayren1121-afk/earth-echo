@@ -835,7 +835,6 @@ function speechFinding(place, variable, lang) {
       ? `${name}目前沒有這項資料，我們不知道。`
       : `${name}: there is no data for this, so we don't know.`;
   }
-  const span = spokenYears(b.tr, lang);
   const slopeDigits = b.kind === "precip" ? 0 : 2;
   const abs = spokenAbs(b.tr.sen_slope_per_decade, slopeDigits);
   const unit = unitFor(b.kind);
@@ -856,20 +855,20 @@ function speechFinding(place, variable, lang) {
       const change = pctTxt
         ? `雨量${down ? "少" : "多"}了約 ${pctTxt}%`
         : `雨量${down ? "變少" : "變多"}`;
-      fact = `衛星顯示${spanRain}${change}，但更長的 NASA 資料看不出變${down ? "少" : "多"}。`;
+      fact = `${spanRain}${change}，但較長的紀錄看不出變${down ? "少" : "多"}。`;
     } else {
       const change = pctTxt
         ? `rainfall has ${down ? "fallen" : "risen"} by about ${pctTxt}%`
         : `rainfall has ${down ? "fallen" : "risen"}`;
-      fact = `Satellites show ${change} ${spanRain}, but the longer NASA record does not show a lasting ${down ? "decline" : "increase"}.`;
+      fact = `${change[0].toUpperCase() + change.slice(1)} ${spanRain}, but the longer record does not show a lasting ${down ? "decline" : "increase"}.`;
     }
     return joinSpeech([fact, inferenceSpeech(speechFindingInference(place, variable, lang), lang)], lang);
   }
 
   if (sourcesDisagree(place, variable)) {
     return lang === "zh"
-      ? `${name}${span}，兩筆 NASA 資料方向不一樣，目前判斷不了，我們不知道。`
-      : `${name}, ${span}, the two NASA records disagree, so we cannot tell, and we don't know.`;
+      ? `${name}兩筆資料方向不一樣，目前判斷不了，我們不知道。`
+      : `${name}: the two records disagree, so we cannot tell, and we don't know.`;
   }
 
   if (b.kind === "co2") {
@@ -882,39 +881,27 @@ function speechFinding(place, variable, lang) {
       const y0 = fb.baseline_years ? fb.baseline_years[0] : b.tr.first_year;
       const y1 = fb.recent_years ? fb.recent_years[1] || fb.recent_years[0] : b.tr.last_year;
       fact = lang === "zh"
-        ? `${name}從 ${y0} 年的約 ${a0} ppm，增加到 ${y1} 年的約 ${a1} ppm。這是 NASA 衛星的短紀錄。`
-        : `In ${name}, NASA satellites show about ${a0} ppm in ${y0}, rising to about ${a1} ppm in ${y1}. This is a short record.`;
+        ? `${name}從 ${y0} 年的約 ${a0} ppm，增加到 ${y1} 年的約 ${a1} ppm。這是一段短紀錄。`
+        : `In ${name}, it rose from about ${a0} ppm in ${y0} to about ${a1} ppm in ${y1}. This is a short record.`;
     } else {
       fact = lang === "zh"
-        ? `${name}的二氧化碳，NASA 衛星顯示這段短紀錄在上升。`
-        : `In ${name}, NASA satellites show carbon dioxide rising in this short record.`;
+        ? `${name}的二氧化碳，這段短紀錄在上升。`
+        : `In ${name}, carbon dioxide is rising in this short record.`;
     }
     return joinSpeech([fact, inferenceSpeech(speechFindingInference(place, variable, lang), lang)], lang);
   }
 
   if (b.tr.confidence !== "clear") {
     return lang === "zh"
-      ? `${name}${span}，目前資料看不出明確變化，我們不知道。`
-      : `${name}, ${span}, the data do not show a clear change, so we don't know.`;
+      ? `${name}目前資料看不出明確變化，我們不知道。`
+      : `${name}: the data do not show a clear change, so we don't know.`;
   }
 
   let fact;
   if (lang === "zh") {
-    const src = bothSourcesAgree(place, variable) ? "兩筆 NASA 資料都這樣顯示" : "NASA 資料顯示";
-    if (bothSourcesAgree(place, variable)) {
-      fact = `${name}${span}，每 10 年大約${verb} ${abs} ${unit}，${src}。`;
-    } else {
-      fact = `${name}${span}，${src}每 10 年大約${verb} ${abs} ${unit}。`;
-    }
+    fact = `${name}每 10 年大約${verb} ${abs} ${unit}。`;
   } else {
-    const src = bothSourcesAgree(place, variable)
-      ? "and both NASA records show this"
-      : "according to the NASA data";
-    if (bothSourcesAgree(place, variable)) {
-      fact = `In ${name}, ${span}, ${qty} has ${verb} by about ${abs} ${unit} per decade, ${src}.`;
-    } else {
-      fact = `In ${name}, ${span}, ${qty} has ${verb} by about ${abs} ${unit} per decade, ${src}.`;
-    }
+    fact = `In ${name}, ${qty} has ${verb} by about ${abs} ${unit} per decade.`;
   }
   return joinSpeech([fact, inferenceSpeech(speechFindingInference(place, variable, lang), lang)], lang);
 }
@@ -933,8 +920,8 @@ function speechMeaning(place, variable, lang) {
     const a1 = fmtDec(fb.period_mean_recent, dgt);
     const down = fb.period_mean_recent < fb.period_mean_baseline;
     return lang === "zh"
-      ? `衛星看到的年雨量，從約 ${a0} 毫米${down ? "降" : "升"}到約 ${a1} 毫米。較長的資料則看不出變${down ? "少" : "多"}。`
-      : `Satellites show annual rainfall going from about ${a0} millimetres to about ${a1} millimetres. The longer record does not show a lasting ${down ? "decline" : "increase"}.`;
+      ? `年雨量從約 ${a0} 毫米${down ? "降" : "升"}到約 ${a1} 毫米。較長的紀錄則看不出變${down ? "少" : "多"}。`
+      : `Annual rainfall went from about ${a0} millimetres to about ${a1} millimetres. The longer record does not show a lasting ${down ? "decline" : "increase"}.`;
   }
 
   if (b.kind === "humidity") {
@@ -1056,23 +1043,13 @@ function nexSpeechRange(place, variable, lang) {
     : (signedUp ? (lang === "zh" ? "增加" : "increase") : (lang === "zh" ? "減少" : "decrease"));
   const same = loTxt === hiTxt;
   if (lang === "zh") {
-    if (b.kind === "temp") {
-      return same
-        ? `NASA 氣候模式估計到 ${year} 年可能再${verb}約 ${loTxt} ${unit}。`
-        : `NASA 氣候模式估計到 ${year} 年可能再${verb}約 ${loTxt} 到 ${hiTxt} ${unit}。`;
-    }
     return same
-      ? `NASA 氣候模式估計到 ${year} 年可能再${verb}約 ${loTxt} ${unit}。`
-      : `NASA 氣候模式估計到 ${year} 年可能再${verb}約 ${loTxt} 到 ${hiTxt} ${unit}。`;
-  }
-  if (b.kind === "temp") {
-    return same
-      ? `NASA climate models estimate about ${loTxt} ${unit} of ${verb} by ${year}.`
-      : `NASA climate models estimate about ${loTxt} to ${hiTxt} ${unit} of ${verb} by ${year}.`;
+      ? `估計到 ${year} 年可能再${verb}約 ${loTxt} ${unit}。`
+      : `估計到 ${year} 年可能再${verb}約 ${loTxt} 到 ${hiTxt} ${unit}。`;
   }
   return same
-    ? `NASA climate models estimate about ${loTxt} ${unit} of ${verb} by ${year}.`
-    : `NASA climate models estimate about ${loTxt} to ${hiTxt} ${unit} of ${verb} by ${year}.`;
+    ? `Estimates suggest about ${loTxt} ${unit} of ${verb} by ${year}.`
+    : `Estimates suggest about ${loTxt} to ${hiTxt} ${unit} of ${verb} by ${year}.`;
 }
 
 function speechOutlook(place, variable, lang) {
@@ -1084,8 +1061,8 @@ function speechOutlook(place, variable, lang) {
   }
   if (b.kind === "co2" || b.tr?.short_record) {
     return lang === "zh"
-      ? "這段衛星紀錄太短，我們不做往後推估，不知道未來會怎麼走。"
-      : "This satellite record is too short to extrapolate, so we don't know how it will change.";
+      ? "這段紀錄太短，我們不做往後推估，不知道未來會怎麼走。"
+      : "This record is too short to extrapolate, so we don't know how it will change.";
   }
 
   const nexText = nexSpeechRange(place, variable, lang);
@@ -1302,7 +1279,7 @@ function buildSoWhat(place, variable, lang, globalTrend, opts) {
       text: findingText(place, variable, lang, globalTrend, opts),
       details: findingDetails(place, variable, lang, globalTrend, opts),
       source: seriesCite,
-      speech: withSpokenCite(speechFinding(place, variable, lang), spokenSourceCite(place, variable, lang)),
+      speech: speechFinding(place, variable, lang),
     },
     meaning: {
       text: meaningText(place, variable, lang),
@@ -1320,7 +1297,7 @@ function buildSoWhat(place, variable, lang, globalTrend, opts) {
       text: outlookText(place, variable, lang),
       details: outlookDetails(place, variable, lang),
       source: outlookCite,
-      speech: withSpokenCite(speechOutlook(place, variable, lang), spokenOutlookCite(place, variable, lang)),
+      speech: speechOutlook(place, variable, lang),
     },
   };
 }

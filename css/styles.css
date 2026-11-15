@@ -1,4 +1,5 @@
-:root {
+/* Unused dark base (themes 1 and 3 set their own tokens). Default is light. */
+html[data-theme="__unused_dark_base"] {
   --bg: #081018;
   --bg-2: #0c1622;
   --panel: #101c2b;
@@ -131,8 +132,8 @@ html[data-theme="1"] {
   --city-na: #c5c5c5;
 }
 
-/* Theme 2: light paper + deep blue + crimson, near-black text */
-html[data-theme="2"] {
+/* Default / Theme 2: light paper + deep blue + crimson, near-black text */
+:root, html[data-theme="2"] {
   --bg: #f5f7fa;
   --bg-2: #eef2f6;
   --panel: #ffffff;
@@ -263,8 +264,9 @@ html[data-theme="3"] {
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font); }
-html { height: 100%; color-scheme: dark; }
-html[data-theme="2"] { color-scheme: light; }
+html { height: 100%; color-scheme: light; }
+:root, html[data-theme="2"] { color-scheme: light; }
+html[data-theme="1"], html[data-theme="3"] { color-scheme: dark; }
 body {
   min-height: 100%;
   background:
@@ -1020,3 +1022,12 @@ html[data-ui="mobile"] .map-source-details { flex: 1 1 100%; }
   margin: 0.2rem 0 0.05rem;
 }
 .legend .leg-size-dot { display: block; width: 22px; height: 22px; }
+
+.voice-lang-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+  max-width: 28rem;
+}
+.voice-lang-note[hidden] { display: none !important; }

@@ -30,7 +30,8 @@ function buildTourTopics(place, lang, events) {
     const segments = [];
     if (id === "temp") {
       const intro = whereText(place, name, country, lang);
-      segments.push({ id: "where", chart: "trend", variable: "temp", text: intro, speech: intro });
+      const introSpeech = whereSpeech(place, name, country, lang);
+      segments.push({ id: "where", chart: "trend", variable: "temp", text: intro, speech: introSpeech });
     } else if (id === "events") {
       segments.push({
         id: "events",
@@ -81,6 +82,18 @@ function whereText(place, name, country, lang) {
   return `This is ${name}${country ? ", " + country : ""}. This is Capital mode, using the city's full precomputed record. I will start with temperature.`;
 }
 
+function whereSpeech(place, name, country, lang) {
+  if (isTourModePlace(place)) {
+    if (lang === "zh") {
+      const lead = place.fromGeo ? "你現在在這個位置。" : "你選的位置在這裡。";
+      return lead + "這是導覽版，用的是這裡的區域資料，解析度大約 50 公里，所以同一座城市裡相近的地點，數字會很接近。我先說氣溫。";
+    }
+    const lead = place.fromGeo ? "You are at this location. " : "You picked this location. ";
+    return lead + "This is Tour mode, using regional data at about 50 kilometre resolution, so nearby places in the same city get similar numbers. I will start with temperature.";
+  }
+  return whereText(place, name, country, lang);
+}
+
 function eventBits(events, lang) {
   const top = events.slice(0, 3);
   return top.map((e) => {
@@ -102,9 +115,9 @@ function eventsText(events, lang) {
 function eventsSpeech(events, lang) {
   const bits = eventBits(events, lang);
   if (lang === "zh") {
-    return `附近近年，NASA 有記錄到：${bits.join("；")}。這些是觀測到的事件，不一定由本地長期變化直接造成。資料來源：NASA 衛星觀測。`;
+    return `附近近年有記錄到：${bits.join("；")}。這些是觀測到的事件，不一定由本地長期變化直接造成。`;
   }
-  return `Nearby in recent years, NASA has recorded: ${bits.join("; ")}. These are observed events, and they are not necessarily caused by the local long-term change. Source: NASA satellite observations.`;
+  return `Nearby in recent years, these events have been recorded: ${bits.join("; ")}. These are observed events, and they are not necessarily caused by the local long-term change.`;
 }
 
 class Narrator {
@@ -121,9 +134,25 @@ class Narrator {
     this.onTopicChange = null;
     this.lang = "zh";
     this._utterance = null;
+    this._speakGen = 0;
+    this._pendingText = null;
+    this._pendingDone = null;
+    this._voicesWaited = false;
+    this.onEnglishVoiceMissing = null;
+    this._hookVoices();
+  }
+
+  _hookVoices() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (this._voicesHooked) return;
+    this._voicesHooked = true;
+    const onChange = () => this._onVoicesChanged();
+    window.speechSynthesis.addEventListener("voiceschanged", onChange);
+    try { window.speechSynthesis.getVoices(); } catch (err) {}
   }
 
   stop() {
+    this._speakGen += 1;
     this.topics = [];
     this.topicIndex = 0;
     this.segIndex = 0;
@@ -131,7 +160,12 @@ class Narrator {
     this.paused = false;
     this.waitingForNext = false;
     this._utterance = null;
-    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+    this._pendingText = null;
+    this._pendingDone = null;
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch (err) {}
+    }
+    this._notifyEnglishVoice(false);
   }
 
   startTopics(topics, lang) {
@@ -215,32 +249,158 @@ class Narrator {
     else this._speakCurrent();
   }
 
+  _speechLangTag() {
+    return this.lang === "zh" ? "zh-TW" : "en-US";
+  }
+
+  _normVoiceLang(code) {
+    return String(code || "").toLowerCase().replace(/_/g, "-");
+  }
+
   _pickVoice(lang) {
     const voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || [];
-    const want = lang === "zh" ? ["zh-TW", "zh_TW", "zh-HK", "zh-CN", "zh"] : ["en-US", "en-GB", "en"];
+    const norm = (v) => this._normVoiceLang(v.lang);
+    if (lang === "en") {
+      const en = voices.filter((v) => norm(v).startsWith("en"));
+      return en.find((v) => norm(v).startsWith("en-us"))
+        || en.find((v) => norm(v).startsWith("en-gb"))
+        || en[0]
+        || null;
+    }
+    const want = ["zh-tw", "zh-hk", "zh-cn", "zh"];
     for (const code of want) {
-      const v = voices.find((x) => (x.lang || "").toLowerCase().startsWith(code.toLowerCase()));
+      const v = voices.find((x) => norm(x).startsWith(code));
       if (v) return v;
     }
     return null;
   }
 
-  _speakUtterance(text, onDone) {
-    if (typeof window === "undefined" || !window.speechSynthesis) {
-      if (onDone) onDone();
+  _notifyEnglishVoice(force) {
+    if (typeof this.onEnglishVoiceMissing !== "function") return;
+    if (force === false) {
+      this.onEnglishVoiceMissing(false);
       return;
     }
-    const u = new SpeechSynthesisUtterance(toSpoken(text, this.lang));
-    u.lang = this.lang === "zh" ? "zh-TW" : "en-US";
-    u.rate = this.lang === "zh" ? 1.04 : 1.0;
-    u.pitch = 1;
+    if (this.lang !== "en" || typeof window === "undefined" || !window.speechSynthesis) {
+      this.onEnglishVoiceMissing(false);
+      return;
+    }
+    const voices = window.speechSynthesis.getVoices() || [];
+    const missing = voices.length > 0 && !this._pickVoice("en");
+    this.onEnglishVoiceMissing(missing);
+  }
+
+  _onVoicesChanged() {
+    this._notifyEnglishVoice();
+    if (!this.speaking || this.paused || !this._pendingText) return;
     const voice = this._pickVoice(this.lang);
-    if (voice) u.voice = voice;
-    this._utterance = u;
-    u.onend = () => { if (this._utterance === u && onDone) onDone(); };
-    u.onerror = () => { if (this._utterance === u && onDone) onDone(); };
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    if (!voice) return;
+    const cur = this._utterance;
+    const curLang = this._normVoiceLang(cur && cur.voice && cur.voice.lang);
+    const ok = cur && cur.voice && (
+      this.lang === "en" ? curLang.startsWith("en") : curLang.startsWith("zh")
+    );
+    if (ok) return;
+    const text = this._pendingText;
+    const onDone = this._pendingDone;
+    this._utterance = null;
+    try { window.speechSynthesis.cancel(); } catch (err) {}
+    this._speakUtterance(text, onDone);
+  }
+
+  _speakUtterance(text, onDone) {
+    const gen = ++this._speakGen;
+    const start = () => {
+      if (gen !== this._speakGen) return;
+      if (typeof window === "undefined" || !window.speechSynthesis) {
+        if (onDone) onDone();
+        return;
+      }
+      const u = new SpeechSynthesisUtterance(toSpoken(text, this.lang));
+      u.lang = this._speechLangTag();
+      u.rate = this.lang === "zh" ? 1.04 : 1.0;
+      u.pitch = 1;
+      const voice = this._pickVoice(this.lang);
+      if (voice) u.voice = voice;
+      this._notifyEnglishVoice();
+      this._utterance = u;
+      this._pendingText = text;
+      this._pendingDone = onDone;
+      u.onend = () => { if (this._speakGen === gen && this._utterance === u && onDone) onDone(); };
+      u.onerror = () => { if (this._speakGen === gen && this._utterance === u && onDone) onDone(); };
+      try { window.speechSynthesis.cancel(); } catch (err) {}
+      const go = () => {
+        if (this._speakGen !== gen) return;
+        window.speechSynthesis.speak(u);
+      };
+      setTimeout(go, 40);
+    };
+
+    const voices = (window.speechSynthesis && window.speechSynthesis.getVoices()) || [];
+    if (window.speechSynthesis && !voices.length && !this._voicesWaited) {
+      let fired = false;
+      const kick = () => {
+        if (fired || gen !== this._speakGen) return;
+        fired = true;
+        this._voicesWaited = true;
+        start();
+      };
+      window.speechSynthesis.addEventListener("voiceschanged", kick, { once: true });
+      try { window.speechSynthesis.getVoices(); } catch (err) {}
+      setTimeout(kick, 700);
+    } else {
+      start();
+    }
+  }
+
+  rebuildInLanguage(lang, topics) {
+    const wasWaiting = this.waitingForNext;
+    const wasPaused = this.paused;
+    const wasSpeaking = this.speaking;
+    const topicId = this.topics[this.topicIndex] && this.topics[this.topicIndex].id;
+    const segs = this.topics[this.topicIndex] && this.topics[this.topicIndex].segments;
+    const segId = segs && segs[this.segIndex] && segs[this.segIndex].id;
+    const oldSegIndex = this.segIndex;
+
+    this._speakGen += 1;
+    this._utterance = null;
+    this._pendingText = null;
+    this._pendingDone = null;
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch (err) {}
+    }
+
+    this.lang = lang;
+    this.topics = topics || [];
+    let i = this.topics.findIndex((t) => t.id === topicId);
+    if (i < 0) i = Math.min(Math.max(0, this.topicIndex), Math.max(0, this.topics.length - 1));
+    this.topicIndex = this.topics.length ? Math.max(0, i) : 0;
+    const topic = this.topics[this.topicIndex];
+    if (topic) {
+      const j = topic.segments.findIndex((s) => s.id === segId);
+      this.segIndex = j >= 0 ? j : Math.min(oldSegIndex, topic.segments.length);
+    } else {
+      this.segIndex = 0;
+    }
+
+    if (this.onTopicChange && topic) this.onTopicChange(topic, this.topicIndex, this.topics);
+
+    if (wasWaiting) {
+      this.waitingForNext = true;
+      this.speaking = false;
+      this.paused = false;
+      if (this.onWaitForNext) this.onWaitForNext(this.topics[this.topicIndex + 1] || null, topic);
+      this._notifyEnglishVoice();
+      return;
+    }
+    if (wasSpeaking || wasPaused) {
+      this.waitingForNext = false;
+      this.paused = false;
+      this.speaking = true;
+      this._speakCurrent();
+      return;
+    }
+    this._notifyEnglishVoice();
   }
 
   _speakCurrent() {
@@ -282,10 +442,6 @@ class Narrator {
   currentTopic() {
     return this.topics[this.topicIndex] || null;
   }
-}
-
-if (typeof speechSynthesis !== "undefined") {
-  speechSynthesis.addEventListener("voiceschanged", () => {});
 }
 
 // Spoken form: round decimals to 1 place and read units naturally (cards keep exact text)

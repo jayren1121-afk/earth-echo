@@ -560,6 +560,12 @@ function hideMobileStart() {
   el.dataset.dismissed = "1";
 }
 
+function setVoiceLangNote(missing) {
+  const el = document.getElementById("voice-lang-note");
+  if (!el) return;
+  el.hidden = !missing;
+}
+
 window.setLang = function setLang(lang) {
   state.lang = lang;
   localStorage.setItem("earth-echo-lang", lang);
@@ -570,6 +576,17 @@ window.setLang = function setLang(lang) {
     state.tourTopics.forEach((topic) => { topic.label = topicLabel(topic.id, lang); });
   }
   refreshView();
+  const n = state.narrator;
+  const tourActive = n && n.topics && n.topics.length && (n.speaking || n.paused || n.waitingForNext);
+  if (tourActive && state.place) {
+    const topics = buildTourTopics(state.place, lang, state.events);
+    state.tourTopics = topics;
+    if (typeof n.rebuildInLanguage === "function") n.rebuildInLanguage(lang, topics);
+    else n.lang = lang;
+  } else if (n) {
+    n.lang = lang;
+    if (typeof n._notifyEnglishVoice === "function") n._notifyEnglishVoice();
+  }
   renderTourChips();
 }
 
@@ -1018,6 +1035,7 @@ function startTour() {
     box.textContent = t(state.lang, "tour_done");
   };
   state.lastNarratedLatLon = { lat: state.place.lat, lon: state.place.lon };
+  state.narrator.onEnglishVoiceMissing = setVoiceLangNote;
   state.narrator.startTopics(topics, state.lang);
   renderTourChips();
 }

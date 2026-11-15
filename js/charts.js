@@ -21,7 +21,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
     .filter((r) => r[seriesKey] != null)
     .map((r) => ({ year: r.year, value: r[seriesKey] }));
   if (!pts.length || !tr) {
-    ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
+    ctx.fillStyle = themeColor("--chart-label", "#3a4656");
     ctx.font = "13px Outfit, sans-serif";
     ctx.fillText("—", 20, h / 2);
     return;
@@ -57,21 +57,21 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   const Y = (v) => pad.t + ((ymax - v) / (ymax - ymin)) * (h - pad.t - pad.b);
 
   // axes
-  ctx.strokeStyle = themeColor("--chart-axis", "rgba(180,200,220,0.2)");
+  ctx.strokeStyle = themeColor("--chart-axis", "rgba(18, 40, 70, 0.28)");
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(pad.l, pad.t);
   ctx.lineTo(pad.l, h - pad.b);
   ctx.lineTo(w - pad.r, h - pad.b);
   ctx.stroke();
-  ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
+  ctx.fillStyle = themeColor("--chart-label", "#3a4656");
   ctx.font = "11px Outfit, sans-serif";
   const yTicks = 4;
   for (let i = 0; i <= yTicks; i++) {
     const v = ymin + ((ymax - ymin) * i) / yTicks;
     const y = Y(v);
     ctx.fillText(fmtDec(v, spec.chartDigits), 6, y + 3);
-    ctx.strokeStyle = themeColor("--chart-grid", "rgba(180,200,220,0.08)");
+    ctx.strokeStyle = themeColor("--chart-grid", "rgba(18, 40, 70, 0.10)");
     ctx.beginPath();
     ctx.moveTo(pad.l, y);
     ctx.lineTo(w - pad.r, y);
@@ -79,7 +79,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   }
   for (const yr of [xmin, 2000, pts[pts.length - 1].year, xmax]) {
     if (yr == null) continue;
-    ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
+    ctx.fillStyle = themeColor("--chart-label", "#3a4656");
     ctx.fillText(String(yr), X(yr) - 12, h - 8);
   }
 
@@ -102,7 +102,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
 
     ctx.beginPath();
     ctx.setLineDash([5, 5]);
-    ctx.strokeStyle = themeColor("--gold", "#e4b84a");
+    ctx.strokeStyle = themeColor("--gold", "#0a3d91");
     ctx.lineWidth = 1.7;
     proj.series.forEach((s, i) => {
       const x = X(s.year);
@@ -163,7 +163,7 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
 
   // observed
   ctx.beginPath();
-  ctx.strokeStyle = themeColor("--chart-line", "#e8eef4");
+  ctx.strokeStyle = themeColor("--chart-line", "#12151a");
   ctx.lineWidth = 1.6;
   pts.forEach((p, i) => {
     if (i === 0) ctx.moveTo(X(p.year), Y(p.value));
@@ -172,13 +172,13 @@ function drawTrendChart(canvas, place, variable, lang, highlightSeg) {
   ctx.stroke();
   pts.forEach((p) => {
     ctx.beginPath();
-    ctx.fillStyle = themeColor("--chart-line", "#e8eef4");
+    ctx.fillStyle = themeColor("--chart-line", "#12151a");
     ctx.arc(X(p.year), Y(p.value), 1.6, 0, Math.PI * 2);
     ctx.fill();
   });
 
   const unit = spec.unit;
-  ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
+  ctx.fillStyle = themeColor("--chart-label", "#3a4656");
   ctx.font = "10px Outfit, sans-serif";
   ctx.fillText(unit, 8, 12);
 }
@@ -201,7 +201,7 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
   const spec = varSpec(variable);
 
   if (!items.length) {
-    ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
+    ctx.fillStyle = themeColor("--chart-label", "#3a4656");
     ctx.font = "13px Outfit, sans-serif";
     ctx.fillText(t(lang, "no_data"), 20, h / 2);
     return;
@@ -213,7 +213,7 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
   const x0 = padL + (w - padL - 16) * 0.5;
   const scale = (w - padL - 16) / (2 * maxAbs);
 
-  ctx.strokeStyle = themeColor("--chart-axis", "rgba(180,200,220,0.25)");
+  ctx.strokeStyle = themeColor("--chart-axis", "rgba(18, 40, 70, 0.28)");
   ctx.beginPath();
   ctx.moveTo(x0, 8);
   ctx.lineTo(x0, h - 8);
@@ -222,7 +222,7 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
   if (mode !== "year" && variable === "temp" && globalSlope != null) {
     const gx = x0 + globalSlope * scale;
     ctx.setLineDash([3, 3]);
-    ctx.strokeStyle = themeColor("--gold", "#e4b84a");
+    ctx.strokeStyle = themeColor("--gold", "#0a3d91");
     ctx.beginPath();
     ctx.moveTo(gx, 8);
     ctx.lineTo(gx, h - 8);
@@ -238,10 +238,10 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
       ctx.fillStyle = themeColor("--selected-row", "rgba(228,184,74,0.12)");
       ctx.fillRect(0, y - 3, w, rowH);
     }
-    ctx.fillStyle = selected ? themeColor("--gold", "#e4b84a") : themeColor("--chart-label", "#8b9bb0");
+    ctx.fillStyle = selected ? themeColor("--gold", "#0a3d91") : themeColor("--chart-label", "#3a4656");
     ctx.font = "11px Outfit, sans-serif";
     ctx.fillText(String(i + 1).padStart(2, " "), 6, y + 9);
-    ctx.fillStyle = selected ? themeColor("--text", "#e8eef4") : themeColor("--chart-rank-text", "#c5d0dc");
+    ctx.fillStyle = selected ? themeColor("--text", "#12151a") : themeColor("--chart-rank-text", "#12151a");
     ctx.fillText(cityName(c, lang), 28, y + 9);
     const sl = it.value;
     const x1 = x0 + sl * scale;
@@ -251,7 +251,7 @@ function drawRankingChart(canvas, cities, selectedId, globalSlope, lang, variabl
     ctx.globalAlpha = (mode === "trend" && it.significant === false) ? 0.45 : 1;
     ctx.fillRect(barX, y + 3, barW, 8);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = themeColor("--chart-label", "#8b9bb0");
+    ctx.fillStyle = themeColor("--chart-label", "#3a4656");
     const label = mode === "year"
       ? formatAnomaly(sl, variable)
       : ((sl >= 0 ? "+" : "−") + Math.abs(sl).toFixed(spec.slopeDigits));
@@ -314,7 +314,7 @@ function renderChartLegend(el, place, variable, lang) {
   if (typeof canShowStatProjection === "function" && canShowStatProjection(place, variable) && tr?.projection?.series) {
     items.push({
       kind: "dash",
-      color: themeColor("--gold", "#e4b84a"),
+      color: themeColor("--gold", "#0a3d91"),
       fill: themeColor("--proj-fill-legend", "rgba(228,184,74,0.25)"),
       label: t(lang, "legend_stat"),
     });

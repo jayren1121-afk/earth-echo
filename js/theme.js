@@ -1,14 +1,24 @@
 (function applyThemeFromURL() {
   const param = new URLSearchParams(location.search).get("theme");
-  if (param === "1" || param === "3") {
-    document.documentElement.setAttribute("data-theme", param);
-  } else {
-    document.documentElement.setAttribute("data-theme", "2");
-  }
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
+  const theme = (param === "1" || param === "3") ? param : "2";
+  document.documentElement.setAttribute("data-theme", theme);
+  const light = theme === "2";
+  document.documentElement.style.colorScheme = light ? "light" : "dark";
+  const setMeta = (name, content) => {
+    let meta = document.querySelector(`meta[name="${name}"]`);
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", name);
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", content);
+  };
+  setMeta("color-scheme", light ? "light" : "dark");
+  setMeta("supported-color-schemes", light ? "light" : "dark");
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) {
     const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
-    if (bg) meta.setAttribute("content", bg);
+    if (bg) themeColor.setAttribute("content", bg);
   }
 })();
 
