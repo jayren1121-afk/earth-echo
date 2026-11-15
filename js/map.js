@@ -4,7 +4,6 @@ class EchoMap {
     this.ctx = canvas.getContext("2d");
     this.tooltip = tooltip;
     this.land = null;
-    this.grid = null;
     this.cities = [];
     this.year = 2025;
     this.variable = "temp";
@@ -37,9 +36,8 @@ class EchoMap {
     }
   }
 
-  setData({ land, grid, cities }) {
+  setData({ land, cities }) {
     this.land = land;
-    this.grid = grid;
     this.cities = cities || [];
     this._domains = {};
     this.baseDirty = true;
@@ -111,9 +109,30 @@ class EchoMap {
     return hasTrendData(trendOf(c, this.variable));
   }
 
+  _radiusRange() {
+    return { min: 3, max: 10 };
+  }
+
+  _circleT(city) {
+    if (this.mode === "year") {
+      const a = anomalyOf(city, this.variable, this.year);
+      if (!a) return null;
+      const d = this._yearDomain();
+      const scale = d ? d.scale : 1;
+      return Math.max(-1, Math.min(1, a.value / scale));
+    }
+    const tr = trendOf(city, this.variable);
+    if (!hasTrendData(tr)) return null;
+    const d = this._trendDomain();
+    const scale = d ? d.scale : (varSpec(this.variable).legendScale || 1);
+    return Math.max(-1, Math.min(1, tr.sen_slope_per_decade / scale));
+  }
+
   _cityRadius(c, selected) {
-    if (selected) return 6.6;
-    return c.featured ? 5.2 : 4.4;
+    const range = this._radiusRange();
+    const t = this._circleT(c);
+    if (t == null) return (range.min + range.max) / 2;
+    return range.min + (t + 1) * 0.5 * (range.max - range.min);
   }
 
   _hitCity(x, y) {
@@ -123,7 +142,7 @@ class EchoMap {
       if (!this._cityVisible(c)) continue;
       const p = this.lonLatToXY(c.lon, c.lat);
       const selected = this.selected && this.selected.city && this.selected.city.id === c.id;
-      const hitR = this._cityRadius(c, selected) + 5;
+      const hitR = Math.max(this._cityRadius(c, selected) + 5, 11);
       const d = (p.x - x) ** 2 + (p.y - y) ** 2;
       if (d <= hitR * hitR && d < bestD) {
         bestD = d;
@@ -173,16 +192,6 @@ class EchoMap {
           html = `<strong>${name}</strong><br>${t(lang, "no_data")}`;
         }
       }
-    } else if (this.variable === "temp") {
-      const gy = this.mode === "trend" ? this._gistempBackdropYear() : this.year;
-      const gval = this._gridValue(hover.lon, hover.lat, gy);
-      if (gval != null) {
-        const lab = lang === "zh" ? "GISTEMP 距平" : "GISTEMP anomaly";
-        html += `<br>${lab} ${gval > 0 ? "+" : ""}${gval.toFixed(2)} °C`;
-        html += lang === "zh"
-          ? "<br>資料來源：NASA GISS GISTEMP v4"
-          : "<br>Source: NASA GISS GISTEMP v4";
-      }
     }
     this.tooltip.innerHTML = html;
     this.tooltip.classList.remove("hidden");
@@ -226,17 +235,6 @@ class EchoMap {
     return { lon, lat };
   }
 
-  _gridValue(lon, lat, year) {
-    const g = this.grid;
-    if (!g) return null;
-    const yi = g.years.indexOf(year);
-    if (yi < 0) return null;
-    const iy = Math.round((lat - g.lat0) / g.dlat);
-    const ix = Math.round((lon - g.lon0) / g.dlon);
-    if (iy < 0 || iy >= g.nlat || ix < 0 || ix >= g.nlon) return null;
-    return g.values[yi][iy * g.nlon + ix];
-  }
-
   _themeKey() {
     return document.documentElement.getAttribute("data-theme") || "default";
   }
@@ -269,24 +267,6 @@ class EchoMap {
 
   _rgba(r, g, b, a) {
     return `rgba(${r | 0},${g | 0},${b | 0},${a})`;
-  }
-
-  _tempColor(v, alpha = 0.78) {
-    if (v == null || Number.isNaN(v)) return null;
-    if (alpha === 0.78 && this._themeKey() === "2") alpha = 0.88;
-    const t = Math.max(-1, Math.min(1, v / 2.2)); // -2.2..+2.2 °C
-    let r, g, b;
-    if (t < 0) {
-      const u = t + 1;
-      r = 40 + 180 * u;
-      g = 90 + 130 * u;
-      b = 140 + 70 * u;
-    } else {
-      r = 230 + 20 * t;
-      g = 200 - 150 * t;
-      b = 110 - 80 * t;
-    }
-    return `rgba(${r | 0},${g | 0},${b | 0},${alpha})`;
   }
 
   // Diverging: blue = decrease, slate mid, crimson = increase.
@@ -339,31 +319,12 @@ class EchoMap {
   }
 
   _circleStyle(city) {
-    if (this.mode === "year") {
-      const a = anomalyOf(city, this.variable, this.year);
-      if (!a) return null;
-      const d = this._yearDomain();
-      const scale = d ? d.scale : 1;
-      const t = Math.max(-1, Math.min(1, a.value / scale));
-      return { fill: this._divergingColor(t, 0.96), hollow: false };
-    }
-    const tr = trendOf(city, this.variable);
-    if (!hasTrendData(tr)) return null;
-    const d = this._trendDomain();
-    const scale = d ? d.scale : (varSpec(this.variable).legendScale || 1);
-    const t = Math.max(-1, Math.min(1, tr.sen_slope_per_decade / scale));
+    const t = this._circleT(city);
+    if (t == null) return null;
     const fill = this._divergingColor(t, 0.96);
-    const sig = isTrendSignificant(tr);
-    return { fill, hollow: !sig };
-  }
-
-  _gistempBackdropYear() {
-    const years = this.grid && this.grid.years;
-    if (!years || !years.length) return this.year;
-    if (years.includes(2025)) return 2025;
-    const last = years[years.length - 1];
-    if (last === 2026 && years.length > 1) return years[years.length - 2];
-    return last;
+    if (this.mode === "year") return { fill, hollow: false, t };
+    const tr = trendOf(city, this.variable);
+    return { fill, hollow: !isTrendSignificant(tr), t };
   }
 
   _drawBase() {
@@ -448,27 +409,6 @@ class EchoMap {
     ctx.clearRect(0, 0, this.width, this.height);
     ctx.drawImage(this.baseLayer, 0, 0, this.width, this.height);
 
-    if (this.variable === "temp" && this.grid) {
-      const gridYear = this.mode === "trend" ? this._gistempBackdropYear() : this.year;
-      const yi = this.grid.years.indexOf(gridYear);
-      if (yi >= 0) {
-        const vals = this.grid.values[yi];
-        const cw = Math.abs((this.grid.dlon / 360) * this.width) + 0.6;
-        const ch = Math.abs((this.grid.dlat / 180) * this.height) + 0.6;
-        for (let iy = 0; iy < this.grid.nlat; iy++) {
-          for (let ix = 0; ix < this.grid.nlon; ix++) {
-            const v = vals[iy * this.grid.nlon + ix];
-            if (v == null) continue;
-            const lon = this.grid.lon0 + ix * this.grid.dlon;
-            const lat = this.grid.lat0 + iy * this.grid.dlat;
-            const p = this.lonLatToXY(lon, lat);
-            ctx.fillStyle = this._tempColor(v);
-            ctx.fillRect(p.x - cw / 2, p.y - ch / 2, cw, ch);
-          }
-        }
-      }
-    }
-
     if (this.land?.polygons) {
       ctx.save();
       const theme = this._theme();
@@ -501,6 +441,9 @@ class EchoMap {
       const as = a.id === selId ? 1 : 0;
       const bs = b.id === selId ? 1 : 0;
       if (as !== bs) return as - bs;
+      const ra = this._cityRadius(a, false);
+      const rb = this._cityRadius(b, false);
+      if (ra !== rb) return ra - rb; // smaller first, larger on top
       const ah = this._circleStyle(a)?.hollow ? 0 : 1;
       const bh = this._circleStyle(b)?.hollow ? 0 : 1;
       return ah - bh;
@@ -568,9 +511,6 @@ class EchoMap {
       if (kind === "diverging") {
         const t = -1 + 2 * u;
         x.fillStyle = this._divergingColor(t, 1);
-      } else if (kind === "gistemp") {
-        const v = -2.2 + 4.4 * u;
-        x.fillStyle = this._tempColor(v, 1);
       } else {
         x.fillStyle = this._sequentialColor(u, 1);
       }
@@ -604,6 +544,7 @@ class EchoMap {
       const hi = `+${Number(scale).toFixed(digits)}`;
       const unitLabel = unit === "%" ? "%" : " " + unit;
       scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + unitLabel)}`;
+      extra += this._sizeHintHtml(lang);
       extra += `<div class="leg-note leg-baseline">${t(lang, "legend_baseline_note")}</div>`;
     } else {
       const d = this._trendDomain();
@@ -612,11 +553,41 @@ class EchoMap {
       const lo = `−${Number(scale).toFixed(digits)}`;
       const hi = `+${Number(scale).toFixed(digits)}`;
       scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + " " + spec.unit)}`;
+      extra += this._sizeHintHtml(lang);
       extra += `<div class="leg-note">${t(lang, "legend_ns_short")}</div>`;
     }
     container.innerHTML = `<div class="leg-title">${title}</div>${scaleHtml}${extra}${source ? `<div class="leg-source">${source}</div>` : ""}`;
     container.querySelectorAll("canvas.leg-bar").forEach((c) => {
       this._paintScale(c, c.getAttribute("data-kind"), null);
+    });
+    this._paintSizeHint(container);
+  }
+
+  _sizeHintHtml(lang) {
+    return `<div class="leg-size" aria-hidden="true">
+      <canvas class="leg-size-dot" width="24" height="24" data-t="-1"></canvas>
+      <canvas class="leg-size-dot" width="24" height="24" data-t="0"></canvas>
+      <canvas class="leg-size-dot" width="24" height="24" data-t="1"></canvas>
+    </div><div class="leg-note">${t(lang, "legend_size")}</div>`;
+  }
+
+  _paintSizeHint(container) {
+    const theme = this._theme();
+    const range = this._radiusRange();
+    container.querySelectorAll("canvas.leg-size-dot").forEach((c) => {
+      const t = Number(c.getAttribute("data-t"));
+      const r = range.min + (t + 1) * 0.5 * (range.max - range.min);
+      const ctx = c.getContext("2d");
+      const cx = c.width / 2;
+      const cy = c.height / 2;
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = this._divergingColor(t, 1);
+      ctx.fill();
+      ctx.strokeStyle = theme.dotOutline || "#12151A";
+      ctx.lineWidth = 1;
+      ctx.stroke();
     });
   }
 }

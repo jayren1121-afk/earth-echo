@@ -39,8 +39,8 @@ const I18N = {
     map_mode_group: "地圖顯示",
     legend_ns: "空心圓：趨勢未達顯著（Mann–Kendall，α=0.05）",
     legend_ns_short: "空心＝未顯著",
+    legend_size: "圓點大小：小＝較低，大＝較高（與顏色同一尺度）。",
     source_more: "資料來源",
-    legend_gistemp: "底圖：NASA GISS GISTEMP v4 氣溫距平（相對 1951–1980）",
     no_data: "無資料",
     qr_caption: "用手機掃描",
     qr_alt: "手機版語音導覽 QR 碼",
@@ -51,7 +51,6 @@ const I18N = {
     per_decade_unit: "／十年",
     map_hint_mode_trend: "圓點：紅＝增加、藍＝減少（每 10 年）；空心＝未達顯著；沒有圓點＝無資料。",
     map_hint_mode_year: "圓點顏色是該年相對該城市自身基準期的距平；沒有圓點表示該年無資料。",
-    map_hint_gistemp: "底圖顏色是 NASA GISTEMP 全球氣溫距平。",
 
     events_title: "附近事件",
     start_title: "開始導覽",
@@ -65,7 +64,6 @@ const I18N = {
     map_hint_groundwater: "點圓點進入首都版，點其他位置進入導覽版。部分城市沒有完整序列。",
     map_hint_radiation: "點圓點進入首都版，點其他位置進入導覽版。",
     map_hint_co2: "點圓點進入首都版，點其他位置進入導覽版。紀錄較短（約 2015–2021）。",
-    legend_temp: "氣溫距平（相對 1951–1980）",
     legend_precip: "降雨 Sen 斜率（毫米／十年）",
     legend_soil: "土壤濕度 Sen 斜率（kg/m²／十年）",
     legend_humidity: "比濕 Sen 斜率（g/kg／十年）",
@@ -126,7 +124,6 @@ const I18N = {
       城市降雨：NASA Giovanni／GES DISC GPM IMERG Final 月降水，短名 GPM_3IMERGM 07，DOI 10.5067/GPM/IMERG/3B-MONTH/07（完整年約 2001–2024）。<br>
       土壤濕度：NASA Giovanni／GES DISC GLDAS Noah 0–10 公分，短名 GLDAS_NOAH025_M 2.1，變數 SoilMoi0_10cm_inst，DOI 10.5067/SXAVCZFAQLNO。部分地點沒有完整序列。<br>
       額外來源：NASA POWER 月資料 T2M、PRECTOTCORR（MERRA-2），用於地圖點選位置的即時序列與備援。<br>
-      地圖顏色：NASA GISS GISTEMP v4（1200 km 平滑距平，下採樣至約 4°；2026 年為 1–10 月）。基準期 1951–1980。<br>
       未來趨勢陰影：NASA NEX-GDDP-CMIP6（Thrasher et al. 2022，DOI 10.7917/OFSG3345），SSP2-4.5 與 SSP5-8.5 多模式平均與範圍，已對齊觀測基準期；虛線則是獨立的統計外推，不是氣候模式預報。<br>
       附近事件：NASA EONET v3。<br>
       空氣比濕：NASA Giovanni／GES DISC MERRA-2 月平均 2 米比濕，短名 M2IMNXASM 5.12.4，變數 QV2M，DOI 10.5067/5ESKGQTZG7FO（單位已換算為 g/kg）。相對濕度 RH2M 來自 NASA POWER 月資料（以 MERRA-2 為基礎），僅作對照說明。<br>
@@ -176,8 +173,8 @@ const I18N = {
     map_mode_group: "Map display",
     legend_ns: "Hollow circle: trend not significant (Mann–Kendall, α=0.05)",
     legend_ns_short: "Hollow = not significant",
+    legend_size: "Circle size: small = lower, large = higher (same scale as the colours).",
     source_more: "Sources",
-    legend_gistemp: "Base layer: NASA GISS GISTEMP v4 temperature anomaly (vs 1951–1980)",
     no_data: "No data",
     qr_caption: "Scan with your phone",
     qr_alt: "QR code for the mobile voice tour",
@@ -188,7 +185,6 @@ const I18N = {
     per_decade_unit: " / decade",
     map_hint_mode_trend: "Circles: red = increase, blue = decrease (per decade); hollow = not significant; no circle = no data.",
     map_hint_mode_year: "Circle colour is the anomaly vs that city's own baseline; no circle means no data for that year.",
-    map_hint_gistemp: "The background colours are NASA GISTEMP global temperature anomalies.",
 
     events_title: "Nearby events",
     start_title: "Start the tour",
@@ -202,7 +198,6 @@ const I18N = {
     map_hint_groundwater: "Tap a circle for Capital mode, or elsewhere for Tour mode. Some cities have no complete series.",
     map_hint_radiation: "Tap a circle for Capital mode, or elsewhere for Tour mode.",
     map_hint_co2: "Tap a circle for Capital mode, or elsewhere for Tour mode. The record is short (about 2015–2021).",
-    legend_temp: "Temperature anomaly (vs 1951–1980)",
     legend_precip: "Precipitation Sen's slope (mm / decade)",
     legend_soil: "Soil-moisture Sen's slope (kg/m² / decade)",
     legend_humidity: "Specific-humidity Sen's slope (g/kg / decade)",
@@ -263,7 +258,6 @@ const I18N = {
       City rainfall: NASA Giovanni / GES DISC GPM IMERG Final monthly precipitation, short name GPM_3IMERGM 07, DOI 10.5067/GPM/IMERG/3B-MONTH/07 (complete years typically 2001–2024).<br>
       Soil moisture: NASA Giovanni / GES DISC GLDAS Noah 0–10 cm, short name GLDAS_NOAH025_M 2.1, SoilMoi0_10cm_inst, DOI 10.5067/SXAVCZFAQLNO. Some points have no complete series.<br>
       Additional source: NASA POWER monthly T2M and PRECTOTCORR (MERRA-2), used for live series at a clicked point and as a fallback.<br>
-      Map colours: NASA GISS GISTEMP v4 (1200 km smoothed anomalies, downsampled to ~4°; 2026 is January–October). Baseline 1951–1980.<br>
       Outlook bands: NASA NEX-GDDP-CMIP6 (Thrasher et al. 2022, DOI 10.7917/OFSG3345), multi-model mean and range for SSP2-4.5 and SSP5-8.5, bias-anchored to the observed baseline. The dashed line is a separate statistical extrapolation, not a climate-model forecast.<br>
       Nearby events: NASA EONET v3.<br>
       Air specific humidity: NASA Giovanni / GES DISC MERRA-2 monthly 2 m specific humidity, short name M2IMNXASM 5.12.4, QV2M, DOI 10.5067/5ESKGQTZG7FO (shown in g/kg). Relative humidity RH2M comes from NASA POWER monthly data (MERRA-2-based) and is used only as a companion explanation.<br>

@@ -1235,8 +1235,8 @@ function chartSourceCaption(place, variable, lang) {
 function mapLayerShortCitation(variable, lang) {
   const lines = {
     temp: {
-      zh: "MERRA-2 氣溫（1980–2025）· 底圖 GISTEMP v4",
-      en: "MERRA-2 temperature (1980–2025) · base GISTEMP v4",
+      zh: "MERRA-2 氣溫（1980–2025）",
+      en: "MERRA-2 temperature (1980–2025)",
     },
     precip: { zh: "GPM IMERG（2001–2024）", en: "GPM IMERG (2001–2024)" },
     humidity: { zh: "MERRA-2 比濕（1980–2025）", en: "MERRA-2 specific humidity (1980–2025)" },
@@ -1253,8 +1253,8 @@ function mapLayerShortCitation(variable, lang) {
 function mapLayerCitation(variable, lang) {
   if (variable === "temp") {
     return lang === "zh"
-      ? "圖層資料：底圖為 NASA GISS GISTEMP v4（相對 1951–1980，年份 1980–2026）。圓點為各城市 NASA Giovanni MERRA-2 月平均 2 米氣溫（1980–2025 年）。"
-      : "Layer source: background is NASA GISS GISTEMP v4 (relative to 1951–1980; years 1980–2026). Circles are city NASA Giovanni MERRA-2 monthly 2 m air temperature (1980–2025).";
+      ? "圖層資料：各城市 NASA Giovanni MERRA-2 月平均 2 米氣溫（1980–2025 年）。"
+      : "Layer source: city NASA Giovanni MERRA-2 monthly 2 m air temperature (1980–2025).";
   }
   const lines = {
     precip: {

@@ -10,7 +10,6 @@ const state = {
   chartMode: "trend",
   data: null,
   land: null,
-  grid: null,
   eonet: null,
   eonetLive: null,
   giovanni: null,
@@ -392,10 +391,9 @@ async function boot() {
   document.getElementById("lang-zh").classList.toggle("active", state.lang === "zh");
   document.getElementById("lang-en").classList.toggle("active", state.lang === "en");
 
-  const [capitals, land, grid, eonet, giovanni, nex, extra] = await Promise.all([
+  const [capitals, land, eonet, giovanni, nex, extra] = await Promise.all([
     loadJSON("data/capitals.json"),
     loadJSON("data/land.json"),
-    loadJSON("data/gistemp_grid.json"),
     loadJSON("data/eonet_fallback.json"),
     loadJSON("data/giovanni.json").catch(() => null),
     loadJSON("data/nex_cmip6.json").catch(() => null),
@@ -403,7 +401,6 @@ async function boot() {
   ]);
   state.data = capitals;
   state.land = land;
-  state.grid = grid;
   state.eonet = eonet;
   state.giovanni = giovanni;
   state.nex = nex;
@@ -414,7 +411,7 @@ async function boot() {
   applyUIMode();
 
   state.map = new EchoMap(document.getElementById("map"), document.getElementById("map-tooltip"));
-  state.map.setData({ land, grid, cities: capitals.cities });
+  state.map.setData({ land, cities: capitals.cities });
   state.map.onPick = (sel) => onPick(sel);
   state.map.resize();
 

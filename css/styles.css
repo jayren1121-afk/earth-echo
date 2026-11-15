@@ -1011,3 +1011,12 @@ html[data-ui="mobile"] .legend { max-width: none; width: auto; flex: 1 1 auto; }
 html[data-ui="mobile"] .map-foot { flex-wrap: wrap; }
 html[data-ui="mobile"] .map-source-details { flex: 1 1 100%; }
 .leg-baseline { max-width: 340px; white-space: normal; line-height: 1.4; margin-top: 4px; }
+.legend .leg-size {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  width: 120px;
+  height: 22px;
+  margin: 0.2rem 0 0.05rem;
+}
+.legend .leg-size-dot { display: block; width: 22px; height: 22px; }
