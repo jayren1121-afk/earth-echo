@@ -427,6 +427,7 @@ async function boot() {
 function bindUI() {
   document.getElementById("lang-zh").onclick = () => setLang("zh");
   document.getElementById("lang-en").onclick = () => setLang("en");
+  bindTourQr();
   document.getElementById("variable").onchange = (e) => {
     state.variable = e.target.value;
     refreshView();
@@ -558,6 +559,28 @@ function hideMobileStart() {
   const el = document.getElementById("mobile-start");
   el.hidden = true;
   el.dataset.dismissed = "1";
+}
+
+
+function bindTourQr() {
+  const box = document.getElementById("tour-qr");
+  const btn = document.getElementById("tour-qr-btn");
+  if (!box || !btn) return;
+  const setOpen = (open) => {
+    box.classList.toggle("is-open", open);
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  btn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setOpen(!box.classList.contains("is-open"));
+  });
+  document.addEventListener("click", (ev) => {
+    if (!box.contains(ev.target)) setOpen(false);
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") setOpen(false);
+  });
 }
 
 function setVoiceLangNote(missing) {

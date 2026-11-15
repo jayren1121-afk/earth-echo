@@ -43,6 +43,18 @@
     </div>
     <p class="tagline" data-i18n="tagline">聽聽這塊土地一直在告訴你什麼</p>
     <div class="header-actions">
+      <aside class="tour-qr" id="tour-qr" hidden>
+        <button type="button" class="tour-qr-btn" id="tour-qr-btn" aria-expanded="false" aria-controls="tour-qr-zoom">
+          <img src="data/qr-mobile-tour.svg" width="64" height="64" alt="手機版語音導覽 QR 碼" data-i18n-alt="qr_alt" />
+        </button>
+        <p class="tour-qr-cap" data-i18n="qr_caption">手機掃描
+開啟語音導覽</p>
+        <div class="tour-qr-zoom" id="tour-qr-zoom">
+          <a class="tour-qr-link" href="https://jayren1121-afk.github.io/earth-echo/?mobile=1" target="_blank" rel="noopener noreferrer">
+            <img src="data/qr-mobile-tour.svg" width="200" height="200" alt="手機版語音導覽 QR 碼" data-i18n-alt="qr_alt" />
+          </a>
+        </div>
+      </aside>
       <div class="lang-toggle" role="group" aria-label="Language">
         <button type="button" id="lang-zh" class="active" data-lang="zh">中文</button>
         <button type="button" id="lang-en" data-lang="en">EN</button>
@@ -74,12 +86,6 @@
         </div>
       </div>
       <div class="map-foot" id="map-foot">
-        <aside class="tour-qr" id="tour-qr" hidden>
-          <a class="tour-qr-link" href="https://jayren1121-afk.github.io/earth-echo/?mobile=1" target="_blank" rel="noopener noreferrer">
-            <img src="data/qr-mobile-tour.svg" width="88" height="88" alt="手機版語音導覽 QR code / Mobile voice tour" data-i18n-alt="qr_alt" />
-          </a>
-          <p class="tour-qr-cap" data-i18n="qr_caption">用手機掃描</p>
-        </aside>
         <div class="legend" id="legend"></div>
         <details class="map-source-details" id="map-source-details">
           <summary data-i18n="source_more">資料來源</summary>
