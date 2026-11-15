@@ -690,6 +690,16 @@ function refreshView() {
   if (srcFull && typeof mapLayerCitation === "function") {
     srcFull.textContent = mapLayerCitation(state.variable, state.lang);
   }
+  const srcBase = document.getElementById("map-source-baseline");
+  if (srcBase) {
+    if (state.mapMode === "year") {
+      srcBase.textContent = t(state.lang, "legend_baseline_note");
+      srcBase.hidden = false;
+    } else {
+      srcBase.textContent = "";
+      srcBase.hidden = true;
+    }
+  }
   refreshYear();
   refreshConclusion();
   refreshSoWhat();

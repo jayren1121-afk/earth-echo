@@ -326,6 +326,35 @@ function baselineSpanForVariable(cities, variable) {
   return { lo, hi };
 }
 
+const YEAR_BASELINE_META = {
+  temp: { years: "1991–2020", source_zh: "MERRA-2／NASA POWER", source_en: "MERRA-2 / NASA POWER" },
+  humidity: { years: "1991–2020", source_zh: "MERRA-2／NASA POWER（QV）", source_en: "MERRA-2 / NASA POWER (QV)" },
+  radiation: { years: "1991–2020", source_zh: "MERRA-2／NASA POWER", source_en: "MERRA-2 / NASA POWER" },
+  precip: { years: "2001–2024", source_zh: "GPM IMERG", source_en: "GPM IMERG" },
+  soil: { years: "2000–2025", source_zh: "GLDAS", source_en: "GLDAS" },
+  groundwater: { years: "2004–2025", source_zh: "GRACE-DA", source_en: "GRACE-DA" },
+  co2: { years: "2015–2021", source_zh: "OCO-2 XCO2", source_en: "OCO-2 XCO2" },
+};
+
+function yearBaselineMeta(variable, cities) {
+  const meta = YEAR_BASELINE_META[variable] || {};
+  const span = baselineSpanForVariable(cities, variable);
+  const years = meta.years || (span ? `${span.lo}–${span.hi}` : "");
+  return {
+    years,
+    source_zh: meta.source_zh || "NASA 資料",
+    source_en: meta.source_en || "NASA data",
+  };
+}
+
+function legendYearNote(variable, lang, cities) {
+  const m = yearBaselineMeta(variable, cities);
+  if (lang === "zh") {
+    return `每點＝該城市當年全年平均與其 ${m.years} 平均之差（${m.source_zh}）。紅＝高於平常、藍＝低於平常；點越大越高。`;
+  }
+  return `Each circle is that city's annual mean for the selected year minus its ${m.years} mean (${m.source_en}). Red = above normal, blue = below; a larger circle means a higher value.`;
+}
+
 function legendYearTitle(variable, lang, cities) {
   const names = {
     zh: { temp: "氣溫", precip: "降雨", humidity: "比濕", soil: "土壤濕度", groundwater: "地下水", radiation: "太陽輻射", co2: "XCO2" },

@@ -1,6 +1,6 @@
 const I18N = {
   zh: {
-    legend_baseline_note: "年度距平說明：地圖比較各城市該年年平均值與該城市自身的「平常值」。氣溫、比濕（QV）與太陽輻射（MERRA-2／NASA POWER）採 1991–2020 年，即世界氣象組織（WMO）30 年氣候標準值；降雨（GPM IMERG）採 2001–2024 年、土壤濕度（GLDAS）採 2000–2025 年、地下水（GRACE-DA）採 2004–2025 年、CO2（OCO-2）採 2015–2021 年，因紀錄不足 30 年，皆以完整紀錄期間為基準。紅色＝高於平常，藍色＝低於平常。",
+    legend_baseline_note: "年度距平說明：地圖比較各城市該年年平均值與該城市自身的「平常值」。氣溫、比濕（QV）與太陽輻射（MERRA-2／NASA POWER）採 1991–2020 年，即世界氣象組織（WMO）30 年氣候標準值；降雨（GPM IMERG）採 2001–2024 年、土壤濕度（GLDAS）採 2000–2025 年、地下水（GRACE-DA）採 2004–2025 年、二氧化碳（OCO-2）採 2015–2021 年，因紀錄不足 30 年，皆以完整紀錄期間為基準。紅色＝高於平常，藍色＝低於平常。",
     subtitle: "地球回聲",
     tagline: "聽聽這塊土地一直在告訴你什麼",
     variable: "變數",
@@ -40,6 +40,7 @@ const I18N = {
     legend_ns: "空心圓：趨勢未達顯著（Mann–Kendall，α=0.05）",
     legend_ns_short: "空心＝未顯著",
     legend_size: "圓點大小：小＝較低，大＝較高（與顏色同一尺度）。",
+    sources_baseline_heading: "年度距平基準",
     source_more: "資料來源",
     no_data: "無資料",
     qr_caption: "手機掃描\n開啟語音導覽",
@@ -174,6 +175,7 @@ const I18N = {
     legend_ns: "Hollow circle: trend not significant (Mann–Kendall, α=0.05)",
     legend_ns_short: "Hollow = not significant",
     legend_size: "Circle size: small = lower, large = higher (same scale as the colours).",
+    sources_baseline_heading: "Year-mode baseline",
     source_more: "Sources",
     no_data: "No data",
     qr_caption: "Scan for\nmobile voice tour",

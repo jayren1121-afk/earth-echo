@@ -544,8 +544,8 @@ class EchoMap {
       const hi = `+${Number(scale).toFixed(digits)}`;
       const unitLabel = unit === "%" ? "%" : " " + unit;
       scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + unitLabel)}`;
-      extra += this._sizeHintHtml(lang);
-      extra += `<div class="leg-note leg-baseline">${t(lang, "legend_baseline_note")}</div>`;
+      extra += this._sizeHintHtml(lang, { includeText: false });
+      extra += `<div class="leg-note leg-baseline">${legendYearNote(this.variable, lang, this.cities)}</div>`;
     } else {
       const d = this._trendDomain();
       const scale = d ? d.scale : spec.legendScale;
@@ -553,7 +553,7 @@ class EchoMap {
       const lo = `−${Number(scale).toFixed(digits)}`;
       const hi = `+${Number(scale).toFixed(digits)}`;
       scaleHtml = `<canvas class="leg-bar" width="120" height="8" data-kind="diverging"></canvas>${ticks(lo, "0", hi + " " + spec.unit)}`;
-      extra += this._sizeHintHtml(lang);
+      extra += this._sizeHintHtml(lang, { includeText: true });
       extra += `<div class="leg-note">${t(lang, "legend_ns_short")}</div>`;
     }
     container.innerHTML = `<div class="leg-title">${title}</div>${scaleHtml}${extra}${source ? `<div class="leg-source">${source}</div>` : ""}`;
@@ -563,12 +563,16 @@ class EchoMap {
     this._paintSizeHint(container);
   }
 
-  _sizeHintHtml(lang) {
+  _sizeHintHtml(lang, opts) {
+    opts = opts || {};
+    const text = opts.includeText !== false
+      ? `<div class="leg-note">${t(lang, "legend_size")}</div>`
+      : "";
     return `<div class="leg-size" aria-hidden="true">
       <canvas class="leg-size-dot" width="24" height="24" data-t="-1"></canvas>
       <canvas class="leg-size-dot" width="24" height="24" data-t="0"></canvas>
       <canvas class="leg-size-dot" width="24" height="24" data-t="1"></canvas>
-    </div><div class="leg-note">${t(lang, "legend_size")}</div>`;
+    </div>${text}`;
   }
 
   _paintSizeHint(container) {
